@@ -69,3 +69,13 @@ requests timed out after eight seconds and HTTP to port 18765 timed out. A build
 was requested but running/healthy status could not be established. Docker Desktop
 was not restarted because doing so could affect other apps. The upstream lab is
 configuration-ready, not runtime-verified. No unrelated containers were changed.
+
+## Verified Vercel result
+
+- URL: https://madmallard-watchdog-lab.vercel.app/
+- Deployment: dpl_2QAx4H4Fu5GcSmm7zrJNrMfNH6Q6 (READY).
+- HTTP 200 and CSP headers verified.
+- Live browser: failure, validated recovery, missed run, stale output and reset passed.
+- Five Python tests and one Node scenario test passed on the lab branch.
+- Healthchecks Compose configuration validation passed on the Mac.
+- Docker build/start is blocked by the unresponsive host daemon; neither lab is claimed healthy.
