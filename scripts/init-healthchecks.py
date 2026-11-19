@@ -1,5 +1,6 @@
 """Prepare an isolated upstream Healthchecks lab. Never overwrite credentials."""
 import argparse
+import os
 from pathlib import Path
 import secrets
 from urllib.parse import urlsplit
@@ -26,7 +27,7 @@ content = '\n'.join([
     'PING_BODY_LIMIT=0', '',
 ])
 try:
-    with target.open('x', opener=lambda path, flags: __import__('os').open(path, flags, 0o600)) as fh:
+    with open(target, 'x', opener=lambda path, flags: os.open(path, flags, 0o600)) as fh:
         fh.write(content)
 except FileExistsError:
     print('Existing .env.healthchecks preserved.')
