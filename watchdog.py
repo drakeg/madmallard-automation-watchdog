@@ -1,6 +1,7 @@
 """Standard-library automation watchdog: heartbeat tracking, output checks and alerts."""
+import base64
+import binascii
 import csv
-import hashlib
 import hmac
 import html
 import json
@@ -12,6 +13,7 @@ import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib import request
+from urllib.parse import urlsplit
 
 DATA = Path(os.getenv("WATCHDOG_DATA", "/data"))
 CONFIG = Path(os.getenv("WATCHDOG_CONFIG", "/app/jobs.json"))
@@ -41,13 +43,15 @@ def init():
         raise ValueError("Provide between one and five jobs")
     for job in spec["jobs"]:
         ident = job["id"]
-        if not ident.replace("-", "").replace("_", "").isalnum():
+        if not ident.isascii() or not ident.replace("-", "").replace("_", "").isalnum():
             raise ValueError("Invalid job id")
         secret = os.getenv(job["token_env"], "")
         if len(secret) < 20:
             raise ValueError("Missing or short token for " + ident)
         if int(job["interval_seconds"]) < 5 or int(job["grace_seconds"]) < 0:
             raise ValueError("Invalid schedule")
+        if ident in jobs:
+            raise ValueError("Duplicate job id")
         jobs[ident] = {**job, "_token": secret}
     with connection() as db:
         db.execute("""CREATE TABLE IF NOT EXISTS events
@@ -91,7 +95,12 @@ def validate_output(job):
 
 def notify(job, reason):
     if not WEBHOOK_URL:
-        return
+        return False
+    # Do not allow unencrypted or non-HTTPS destinations outside loopback tests.
+    parsed = urlsplit(WEBHOOK_URL)
+    if parsed.scheme != "https" and not (parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost")):
+        print("Notification URL must use HTTPS (loopback HTTP allowed for tests)", flush=True)
+        return False
     # Only send nonsensitive identifiers/reason, never filenames or records.
     payload = json.dumps({"text": "Watchdog: " + job + " - " + reason,
                           "job": job, "reason": reason}).encode()
@@ -100,8 +109,10 @@ def notify(job, reason):
                               headers={"Content-Type": "application/json"}, method="POST")
         with request.urlopen(req, timeout=5) as response:
             response.read()
+            return True
     except Exception as exc:
         print("Notification delivery failed:", type(exc).__name__, flush=True)
+        return False
 
 def change_alert(db, ident, reason):
     row = db.execute("SELECT active,reason FROM alerts WHERE job=?", (ident,)).fetchone()
@@ -160,6 +171,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type + "; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
         self.end_headers()
         self.wfile.write(body)
 
@@ -174,11 +187,23 @@ class Handler(BaseHTTPRequestHandler):
         good, detail = record(ident, kind)
         return self.send(200 if good else 422, {"ok": good, "message": detail})
 
+    def _admin_authorized(self):
+        supplied = self.headers.get("Authorization", "")
+        if supplied.startswith("Bearer "):
+            return hmac.compare_digest(supplied[7:], ADMIN_TOKEN)
+        if supplied.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(supplied[6:], validate=True).decode("utf-8")
+                username, password = decoded.split(":", 1)
+                return hmac.compare_digest(username, "admin") and hmac.compare_digest(password, ADMIN_TOKEN)
+            except (ValueError, UnicodeDecodeError, binascii.Error):
+                return False
+        return False
+
     def do_GET(self):
-        token = self.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not hmac.compare_digest(token, ADMIN_TOKEN):
+        if not self._admin_authorized():
             self.send_response(401)
-            self.send_header("WWW-Authenticate", 'Bearer realm="Watchdog admin"')
+            self.send_header("WWW-Authenticate", 'Basic realm="Watchdog admin"')
             self.end_headers()
             return
         if self.path not in ("/", "/api/status"):
