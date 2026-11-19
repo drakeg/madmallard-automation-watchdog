@@ -1,0 +1,8 @@
+.env
+jobs.json
+demo-outputs/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+.DS_Store
