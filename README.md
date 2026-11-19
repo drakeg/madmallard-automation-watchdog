@@ -15,7 +15,7 @@ docker compose ps
 
 Dashboard/API: `http://<LAN_HOST_IP>:18765/api/status` with `Authorization: Bearer <ADMIN_TOKEN>`. Root dashboard requires the same header; for a browser use a trusted local reverse proxy that enforces admin authentication. This is intentionally **not** a public website. LAN binding is configurable via WATCHDOG_BIND (default 0.0.0.0). Do not forward this port to the internet; use TLS plus access control for any remote production access.
 
-The monitor runs with its own SQLite volume and read-only access to synthetic outputs. No shared databases, cross-app authentication, or dependencies on other Mad Mallard projects.
+Compose uses the existing Docker bridge network, avoiding address-pool allocation on crowded test hosts. The monitor runs with its own SQLite volume and read-only access to synthetic outputs. No shared databases, cross-app authentication, or dependencies on other Mad Mallard projects.
 
 ### API
 

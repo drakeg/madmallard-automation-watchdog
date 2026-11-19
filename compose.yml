@@ -3,6 +3,7 @@ services:
   watchdog:
     build: .
     restart: unless-stopped
+    network_mode: bridge
     ports:
       - "${WATCHDOG_BIND:-0.0.0.0}:${WATCHDOG_PORT:-18765}:8765"
     environment:

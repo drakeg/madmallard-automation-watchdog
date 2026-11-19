@@ -6,7 +6,8 @@
 - [x] Isolated Docker Compose configuration and configurable LAN port
 - [x] Missed run, explicit failure, output freshness and nonempty CSV checks
 - [x] Synthetic demo, baseline unit tests, README and initial release policy
-- [ ] Verify full Docker integration, restart persistence and failure notifications on connected host
+- [x] Build and start Docker container; confirm two output-validated synthetic success pings
+- [ ] Verify restart persistence and failure/missed-run notifications on connected host
 - [ ] Add CI pipeline and review first PR
 
 **Definition of done:** clean tests, Docker smoke tests, no real customer data, documented threat model, reviewable PR.
