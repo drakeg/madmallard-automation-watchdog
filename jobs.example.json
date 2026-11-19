@@ -1,0 +1,20 @@
+{
+  "jobs": [
+    {
+      "id": "inventory-feed",
+      "name": "Synthetic inventory CSV export",
+      "token_env": "JOB_INVENTORY_TOKEN",
+      "interval_seconds": 60,
+      "grace_seconds": 15,
+      "output_check": {"type": "csv", "path": "inventory.csv", "max_age_seconds": 120}
+    },
+    {
+      "id": "report-export",
+      "name": "Synthetic recurring report",
+      "token_env": "JOB_REPORT_TOKEN",
+      "interval_seconds": 90,
+      "grace_seconds": 15,
+      "output_check": {"type": "file", "path": "report.txt", "max_age_seconds": 180}
+    }
+  ]
+}

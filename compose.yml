@@ -1,0 +1,27 @@
+name: madmallard-automation-watchdog
+services:
+  watchdog:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${WATCHDOG_BIND:-0.0.0.0}:${WATCHDOG_PORT:-18765}:8765"
+    environment:
+      ADMIN_TOKEN: "${ADMIN_TOKEN:?Set ADMIN_TOKEN in .env}"
+      JOB_INVENTORY_TOKEN: "${JOB_INVENTORY_TOKEN:?Set token}"
+      JOB_REPORT_TOKEN: "${JOB_REPORT_TOKEN:?Set token}"
+      WEBHOOK_URL: "${WEBHOOK_URL:-}"
+      WATCHDOG_CONFIG: /app/jobs.json
+      WATCHDOG_OUTPUT_ROOT: /outputs
+      WATCHDOG_DATA: /data
+      PORT: "8765"
+    volumes:
+      - watchdog-data:/data
+      - ./jobs.json:/app/jobs.json:ro
+      - ./demo-outputs:/outputs:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',8765),3); s.close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+volumes:
+  watchdog-data:
