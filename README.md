@@ -2,6 +2,8 @@
 
 Standalone, open-source MVP for the **Five-Job Automation Watchdog Setup** service. Detects **missed completions**, explicit job failures, and business-output failures. Designed for isolated customer-owned Docker/Linux installs; **not affiliated with Healthchecks.io**.
 
+See [TESTING.md](TESTING.md) for the optional upstream Healthchecks Docker lab (port 18080), the custom Watchdog (port 18765), and the Vercel browser-only simulation. Vercel does not host the live monitor or its SQLite database.
+
 ## Quick start (local test only)
 
 ```bash

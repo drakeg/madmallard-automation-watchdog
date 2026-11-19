@@ -1,0 +1,13 @@
+name: madmallard-watchdog-healthchecks-lab
+services:
+  healthchecks:
+    image: healthchecks/healthchecks:v5.0.3
+    restart: unless-stopped
+    network_mode: bridge
+    env_file: .env.healthchecks
+    ports:
+      - "${HEALTHCHECKS_BIND:-0.0.0.0}:${HEALTHCHECKS_PORT:-18080}:8000"
+    volumes:
+      - healthchecks-data:/data
+volumes:
+  healthchecks-data:

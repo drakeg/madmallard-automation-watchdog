@@ -1,0 +1,71 @@
+# Standalone testing environments
+
+Issue #7 / Sprint 1. These environments belong only to this repository.
+
+## Custom Watchdog
+
+Use the existing `compose.yml` and README quick start. Dashboard is port 18765.
+Preserve `.env`, `jobs.json`, and the `watchdog-data` volume. Never run `down -v`
+unless deliberately discarding history. Browser Basic auth is supported by the
+in-progress Sprint 1 build; the merged foundation only accepts bearer headers.
+
+## Upstream Healthchecks comparison lab
+
+This is the actual BSD 3-Clause [Healthchecks project](https://github.com/healthchecks/healthchecks),
+not the custom Watchdog. Official image tag v5.0.3 corresponds to upstream commit
+`51a503531d845fc11d5ef270d576c59c300e3620`. SQLite and its own named volume keep it
+independent. Docker image availability/runtime remain to be verified on the host.
+
+```bash
+python3 scripts/init-healthchecks.py --url http://YOUR_LAN_IP:18080
+docker compose -f compose.healthchecks.yml config -q
+docker compose -f compose.healthchecks.yml up -d
+# Initial account creation only (password is read inside the container):
+docker compose -f compose.healthchecks.yml exec healthchecks ./manage.py createsuperuser --noinput
+docker compose -f compose.healthchecks.yml ps
+```
+
+Open the configured LAN URL. Email is `admin@example.invalid`; password is the
+`DJANGO_SUPERUSER_PASSWORD` entry in the ignored `.env.healthchecks`. Setup never
+overwrites an existing environment file. Stop with `docker compose -f
+compose.healthchecks.yml down` (no `-v`). Default LAN binding is configurable.
+This HTTP lab is for a trusted network only; don't expose it to the internet.
+
+Create a synthetic check in the UI, set a short period/grace, copy its generated
+ping URL, then send a normal ping, a `/fail` ping, and another normal ping to
+observe failure/recovery. Omit pings past the deadline to test a missed run.
+Use no production jobs or customer data. The upstream heartbeat does not inspect
+business outputs; the custom Watchdog handles those separately.
+
+No SMTP provider, paid API or external notification integration is configured.
+Status changes can be inspected in the UI; external alert delivery is not yet
+an acceptance-tested feature of this comparison lab.
+
+## Vercel simulation
+
+`vercel.json` publishes only `web/` with no install/build step, API, cron, database,
+secrets or paid integration. It simulates failure, missed run, stale output,
+recovery and reset in the browser. No monitoring occurs while it is closed.
+Do not put admin tokens or real job metadata in this static demo.
+
+The current live monitor uses SQLite and a continuous polling process; deploying
+that implementation as an ordinary Vercel Function would not preserve those
+semantics. A production Vercel backend needs separate durable storage and a
+reliable scheduler, which are outside this zero-additional-service lab.
+
+Validate with:
+
+```bash
+python3 -m unittest discover -s tests -v
+node --test tests/demo.test.cjs
+node --check web/app.js
+python3 -m http.server 18865 --directory web --bind 127.0.0.1
+```
+
+## Runtime evidence — 2026-11-19
+
+On Gregs-MacBook-Pro.local, all nine in-progress Python tests passed. Docker API
+requests timed out after eight seconds and HTTP to port 18765 timed out. A build
+was requested but running/healthy status could not be established. Docker Desktop
+was not restarted because doing so could affect other apps. The upstream lab is
+configuration-ready, not runtime-verified. No unrelated containers were changed.

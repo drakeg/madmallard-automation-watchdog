@@ -1,4 +1,6 @@
 .env
+.env.healthchecks
+.vercel/
 jobs.json
 demo-outputs/
 __pycache__/
