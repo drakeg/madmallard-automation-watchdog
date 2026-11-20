@@ -15,7 +15,8 @@
 ## Sprint 1 — Pilot readiness
 - [x] Issue #10: verified README badges, generator, maintenance convention and CI check (PR #9)
 - [x] Issue #7: standalone Healthchecks Compose configuration and Vercel simulation
-- [ ] Issue #7: confirm Docker runtime after host daemon recovers (blocked 2026-11-19)
+- [x] Issue #7: custom Docker runtime, failure, restart persistence and recovery verified
+- [ ] Issue #7: finish upstream Healthchecks comparison lab runtime verification
 - [ ] Secure browser dashboard auth and operator-friendly configuration
 - [ ] Support generic webhook formats / SMTP alert routing with retries
 - [ ] End-to-end missed/failure/recovery simulations and integration tests

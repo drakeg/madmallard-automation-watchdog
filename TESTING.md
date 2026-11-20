@@ -62,7 +62,7 @@ node --check web/app.js
 python3 -m http.server 18865 --directory web --bind 127.0.0.1
 ```
 
-## Runtime evidence — 2026-11-19
+## Initial runtime evidence — 2026-11-19
 
 On Gregs-MacBook-Pro.local, all nine in-progress Python tests passed. Docker API
 requests timed out after eight seconds and HTTP to port 18765 timed out. A build
@@ -78,4 +78,17 @@ configuration-ready, not runtime-verified. No unrelated containers were changed.
 - Live browser: failure, validated recovery, missed run, stale output and reset passed.
 - Five Python tests and one Node scenario test passed on the lab branch.
 - Healthchecks Compose configuration validation passed on the Mac.
-- Docker build/start is blocked by the unresponsive host daemon; neither lab is claimed healthy.
+- At initial deployment verification, Docker was blocked by the host daemon; see the subsequent recovery evidence below.
+
+## Subsequent Docker and badge validation
+
+The custom Watchdog container started healthy on the Mac with LAN port 18765.
+Authenticated dashboard and status API both returned HTTP 200. Two synthetic
+output checks passed; an explicit failure raised ALERT, the alert survived a
+container restart, and fresh output completions restored both jobs to OK.
+The upstream Healthchecks image pull was started separately; its runtime
+verification is still pending. No other containers were restarted.
+
+Issue #10: README badge generation/check, repeat-run idempotence and stale-version
+detection passed. Five Python tests, the Node scenario test and GitHub CI passed.
+The central standards repository had only a placeholder README when inspected.
