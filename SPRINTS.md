@@ -13,6 +13,7 @@
 **Definition of done:** clean tests, Docker smoke tests, no real customer data, documented threat model, reviewable PR.
 
 ## Sprint 1 — Pilot readiness (active, 2026-11-19)
+- [x] Adopt complete Mad Mallard development, delivery, commercial and GitHub standards in AGENTS.md and CONTRIBUTING.md
 - [x] Audit stack and add verified, dynamic README badges (PR #6)
 - [x] Document badge maintenance and add automated CI validation
 - [x] Browser Basic authentication without embedding credentials in URLs
