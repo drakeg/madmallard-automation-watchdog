@@ -1,5 +1,15 @@
 # Mad Mallard Automation Watchdog
 
+[![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](Dockerfile)
+[![SQLite](https://img.shields.io/badge/SQLite-database-003B57?logo=sqlite&logoColor=white)](watchdog.py)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](compose.yml)
+
+[![CI](https://github.com/drakeg/madmallard-automation-watchdog/actions/workflows/ci.yml/badge.svg)](https://github.com/drakeg/madmallard-automation-watchdog/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/drakeg/madmallard-automation-watchdog)](LICENSE)
+[![Issues](https://img.shields.io/github/issues/drakeg/madmallard-automation-watchdog)](https://github.com/drakeg/madmallard-automation-watchdog/issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/drakeg/madmallard-automation-watchdog)](https://github.com/drakeg/madmallard-automation-watchdog/pulls)
+
+
 Standalone, open-source MVP for the **Five-Job Automation Watchdog Setup** service. Detects **missed completions**, explicit job failures, and business-output failures. Designed for isolated customer-owned Docker/Linux installs; **not affiliated with Healthchecks.io**.
 
 ## Quick start (local test only)

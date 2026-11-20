@@ -11,3 +11,5 @@
 | P2 | Kubernetes/EKS templates | Later | No cloud provisioning by default |
 | P2 | ECS/ECR templates | Later | Opt-in deployment, no paid resources |
 Contributions are triaged as break/fix, active-sprint, or backlog. Do not expand scope without an issue.
+
+- P2: Adopt machine-readable badge conventions from `drakeg/madmallard-repository-standards` when available; do not silently import unverified standards.
