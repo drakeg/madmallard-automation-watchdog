@@ -1,6 +1,6 @@
 # Sprint plan
 
-## Sprint 0 — Foundation (in progress, 2026-11-19)
+## Sprint 0 — Foundation (merged 2026-11-19, PR #1)
 - [x] Independent public repository, license, contribution process
 - [x] Python standard-library HTTP service and durable SQLite events
 - [x] Isolated Docker Compose configuration and configurable LAN port
@@ -8,15 +8,23 @@
 - [x] Synthetic demo, baseline unit tests, README and initial release policy
 - [x] Build and start Docker container; confirm two output-validated synthetic success pings
 - [ ] Verify restart persistence and failure/missed-run notifications on connected host
-- [ ] Add CI pipeline and review first PR
+- [x] Add CI pipeline and review first PR
 
 **Definition of done:** clean tests, Docker smoke tests, no real customer data, documented threat model, reviewable PR.
 
-## Sprint 1 — Pilot readiness
-- [ ] Secure browser dashboard auth and operator-friendly configuration
-- [ ] Support generic webhook formats / SMTP alert routing with retries
-- [ ] End-to-end missed/failure/recovery simulations and integration tests
-- [ ] Audit/retention policy, metrics and exportable proof report
+## Sprint 1 — Pilot readiness (active, 2026-11-19)
+- [x] Adopt complete Mad Mallard development, delivery, commercial and GitHub standards in AGENTS.md and CONTRIBUTING.md
+- [x] Audit stack and add verified, dynamic README badges (PR #6)
+- [x] Document badge maintenance and add automated CI validation
+- [x] Browser Basic authentication without embedding credentials in URLs
+- [ ] Operator-friendly configuration UI with protected changes
+- [x] Recovery webhook and HTTPS-only external webhook destination checks
+- [x] Persist webhook notifications and retry transient delivery failures with bounded backoff
+- [ ] Support generic webhook formats / SMTP alert routing
+- [x] Synthetic missed/failure/recovery, output-failure and loopback webhook integration tests
+- [x] Live container restart, authorized dashboard/API, and persisted job-event verification
+- [x] Admin-only, redacted CSV event-evidence export
+- [ ] Audit/retention policy and metrics
 - [ ] Customer onboarding and recovery checklist
 
 ## Sprint 2 — Commercial validation
