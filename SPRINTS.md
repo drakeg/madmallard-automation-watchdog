@@ -26,7 +26,7 @@
 - [x] Admin-only, redacted CSV event-evidence export
 - [x] Configurable retention with pending-alert preservation and delivery status metrics
 - [ ] Per-job delivery audit, alert aging and backup/export policy
-- [ ] Customer onboarding and recovery checklist
+- [x] Customer onboarding and recovery checklist
 
 ## Sprint 2 — Commercial validation
 - [ ] Single-page $399 offer; scope and qualification worksheet

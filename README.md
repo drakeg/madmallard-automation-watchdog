@@ -55,6 +55,8 @@ To show a synthetic failed job, POST `failure`; to show a missed run, omit the s
 
 At most five jobs on one host per pilot. No automatic job repair, incident response, outbound customer data, guaranteed uptime or production failover. For independent outage detection, deploy the monitor on a separate host from the jobs in production. An HTTP heartbeat without an output check is **not** sufficient proof of business success.
 
+See the [pilot recovery and handoff runbook](docs/PILOT-RUNBOOK.md).
+
 See [SPRINTS.md](SPRINTS.md), [BACKLOG.md](BACKLOG.md), [RELEASES.md](RELEASES.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [AGENTS.md](AGENTS.md). Licensing: MIT; third-party base image and dependency terms require review for releases.
 
 ### Safe test protocol
