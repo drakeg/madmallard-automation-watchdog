@@ -20,7 +20,7 @@
 - [x] Recovery webhook and HTTPS-only external webhook destination checks
 - [ ] Support generic webhook formats / SMTP alert routing with retries
 - [x] Synthetic missed/failure/recovery, output-failure and loopback webhook integration tests
-- [ ] Full live container restart/persistence drill
+- [x] Live container restart, authorized dashboard/API, and persisted job-event verification
 - [ ] Audit/retention policy, metrics and exportable proof report
 - [ ] Customer onboarding and recovery checklist
 

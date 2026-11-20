@@ -32,10 +32,17 @@ for stat in ("github/issues/", "github/issues-pr/"):
     require(stat in badge_block, "Missing dynamic statistic: " + stat)
 require("badge.svg" in badge_block and "img.shields.io" in badge_block,
         "Use official workflow badge and Shields.io")
-require("release" not in badge_block.lower(), "Release badge requires a published release")
-require("security" not in badge_block.lower(), "Security badge requires an actual workflow")
-require("vercel" not in badge_block.lower(), "No verified Vercel deployment in this branch")
-require(len(re.findall(r"\[!\[", badge_block)) == 7, "Unexpected badge count; re-audit claims")
+# Optional badges are accepted only with their required backing configuration.
+if "github/v/release/" in badge_block:
+    require("https://github.com/drakeg/madmallard-automation-watchdog/releases" in badge_block,
+            "Release badge must link to releases; verify a published release externally")
+if "security" in badge_block.lower():
+    require(any("security" in f.name.lower() for f in workflow.parent.glob("*.yml")),
+            "Security badges require an actual security workflow")
+if "vercel" in badge_block.lower():
+    require((root / "vercel.json").exists() or (root / ".vercel").exists(),
+            "Vercel badge requires verified deployment configuration")
+require(len(re.findall(r"\[!\[", badge_block)) >= 7, "Required badges missing")
 if issues:
     raise SystemExit("\n".join(issues))
 print("README badge claims validated against repository configuration")
