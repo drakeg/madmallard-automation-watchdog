@@ -1,6 +1,7 @@
 """Standard-library automation watchdog: heartbeat tracking, output checks and alerts."""
+import base64
+import binascii
 import csv
-import hashlib
 import hmac
 import html
 import json
@@ -12,6 +13,7 @@ import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib import request
+from urllib.parse import urlsplit
 
 DATA = Path(os.getenv("WATCHDOG_DATA", "/data"))
 CONFIG = Path(os.getenv("WATCHDOG_CONFIG", "/app/jobs.json"))
@@ -21,6 +23,9 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 POLL_SECONDS = int(os.getenv("POLL_SECONDS", "5"))
 PORT = int(os.getenv("PORT", "8765"))
 lock = threading.RLock()
+delivery_lock = threading.Lock()
+MAX_DELIVERY_ATTEMPTS = 5
+RETRY_SECONDS = 30
 jobs = {}
 boot_time = time.time()
 
@@ -41,13 +46,15 @@ def init():
         raise ValueError("Provide between one and five jobs")
     for job in spec["jobs"]:
         ident = job["id"]
-        if not ident.replace("-", "").replace("_", "").isalnum():
+        if not ident.isascii() or not ident.replace("-", "").replace("_", "").isalnum():
             raise ValueError("Invalid job id")
         secret = os.getenv(job["token_env"], "")
         if len(secret) < 20:
             raise ValueError("Missing or short token for " + ident)
         if int(job["interval_seconds"]) < 5 or int(job["grace_seconds"]) < 0:
             raise ValueError("Invalid schedule")
+        if ident in jobs:
+            raise ValueError("Duplicate job id")
         jobs[ident] = {**job, "_token": secret}
     with connection() as db:
         db.execute("""CREATE TABLE IF NOT EXISTS events
@@ -56,12 +63,73 @@ def init():
         db.execute("""CREATE TABLE IF NOT EXISTS alerts
             (job TEXT PRIMARY KEY, active INTEGER NOT NULL, reason TEXT,
              since REAL, last_notified REAL)""")
+        init_notifications(db)
         for job in jobs:
             db.execute("INSERT OR IGNORE INTO alerts(job,active) VALUES (?,0)", (job,))
 
 def event(db, job, kind, details=""):
     db.execute("INSERT INTO events(job,kind,timestamp,details) VALUES (?,?,?,?)",
                (job, kind, time.time(), details[:500]))
+
+def init_notifications(db):
+    db.execute("""CREATE TABLE IF NOT EXISTS notifications
+        (id INTEGER PRIMARY KEY, job TEXT NOT NULL, reason TEXT NOT NULL,
+         created REAL NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
+         next_attempt REAL NOT NULL, delivered REAL)""")
+
+def enqueue_notification(db, job, reason):
+    if WEBHOOK_URL:
+        db.execute("INSERT INTO notifications(job,reason,created,next_attempt) VALUES (?,?,?,?)",
+                   (job, reason, time.time(), time.time()))
+
+def deliver_pending():
+    """Durable, bounded at-least-once delivery; never hold the data lock during HTTP."""
+    if not WEBHOOK_URL or not delivery_lock.acquire(blocking=False):
+        return
+    try:
+        with lock, connection() as db:
+            rows = db.execute("""SELECT n.id,n.job,n.reason,n.attempts FROM notifications n
+                WHERE n.delivered IS NULL AND n.attempts < ? AND n.next_attempt <= ?
+                AND NOT EXISTS (SELECT 1 FROM notifications older WHERE older.job=n.job
+                    AND older.id<n.id AND older.delivered IS NULL AND older.attempts < ?)
+                ORDER BY n.id LIMIT 5""", (MAX_DELIVERY_ATTEMPTS, time.time(), MAX_DELIVERY_ATTEMPTS)).fetchall()
+        for ident, job, reason, attempts in rows:
+            attempt = attempts + 1
+            # Reserve attempt before HTTP: a process crash still leaves a retry due.
+            with lock, connection() as db:
+                db.execute("UPDATE notifications SET attempts=?,next_attempt=? WHERE id=?",
+                           (attempt, time.time() + RETRY_SECONDS * 2 ** (attempt - 1), ident))
+            sent = notify(job, reason)
+            with lock, connection() as db:
+                if sent:
+                    db.execute("UPDATE notifications SET delivered=? WHERE id=?", (time.time(), ident))
+                    db.execute("UPDATE alerts SET last_notified=? WHERE job=?", (time.time(), job))
+                kind = 'notification_sent' if sent else 'notification_exhausted' if attempt == MAX_DELIVERY_ATTEMPTS else 'notification_retry'
+                event(db, job, kind, f'Notification {ident}; attempt {attempt}')
+    finally:
+        delivery_lock.release()
+
+def notification_status():
+    with lock, connection() as db:
+        rows = db.execute("SELECT id,job,reason,attempts,created,delivered FROM notifications ORDER BY id DESC LIMIT 50").fetchall()
+    return [{"id": r[0], "job": r[1], "reason": r[2], "attempts": r[3],
+             "created": stamp(r[4]), "state": "sent" if r[5] else "exhausted" if r[3] >= MAX_DELIVERY_ATTEMPTS else "pending"}
+            for r in rows]
+
+def proof_report():
+    """Evidence summary excludes paths, output contents, tokens and destinations."""
+    result = []
+    with lock, connection() as db:
+        for ident in jobs:
+            alert = db.execute('SELECT active,reason FROM alerts WHERE job=?', (ident,)).fetchone()
+            counts = dict(db.execute('SELECT kind,COUNT(*) FROM events WHERE job=? GROUP BY kind', (ident,)))
+            last = db.execute("SELECT MAX(timestamp) FROM events WHERE job=? AND kind='success'", (ident,)).fetchone()[0]
+            result.append({'id': ident, 'state': 'ALERT' if alert[0] else 'OK' if last else 'UNVERIFIED',
+                           'reason': alert[1] if alert[0] else None,
+                           'last_validated_success': stamp(last) if last else None, 'event_counts': counts})
+    return {'schema_version': 1, 'generated_at': stamp(time.time()), 'jobs': result,
+            'notifications': notification_status(),
+            'limitations': 'Observed application evidence only; not a delivery, uptime or compliance guarantee. Job identifiers are operator supplied.'}
 
 def validate_output(job):
     check = job.get("output_check")
@@ -89,31 +157,44 @@ def validate_output(job):
         return False, "Output is empty"
     return True, "Output validated"
 
+class NoWebhookRedirect(request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
 def notify(job, reason):
     if not WEBHOOK_URL:
-        return
+        return False
+    # Do not allow unencrypted or non-HTTPS destinations outside loopback tests.
+    parsed = urlsplit(WEBHOOK_URL)
+    if parsed.scheme != "https" and not (parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost")):
+        print("Notification URL must use HTTPS (loopback HTTP allowed for tests)", flush=True)
+        return False
     # Only send nonsensitive identifiers/reason, never filenames or records.
     payload = json.dumps({"text": "Watchdog: " + job + " - " + reason,
                           "job": job, "reason": reason}).encode()
     try:
         req = request.Request(WEBHOOK_URL, data=payload,
                               headers={"Content-Type": "application/json"}, method="POST")
-        with request.urlopen(req, timeout=5) as response:
-            response.read()
+        # Do not forward payloads to a redirect destination or downgrade HTTPS.
+        with request.build_opener(NoWebhookRedirect).open(req, timeout=5) as response:
+            return 200 <= response.status < 300
     except Exception as exc:
         print("Notification delivery failed:", type(exc).__name__, flush=True)
+        return False
 
 def change_alert(db, ident, reason):
     row = db.execute("SELECT active,reason FROM alerts WHERE job=?", (ident,)).fetchone()
     if reason:
         if not row[0] or row[1] != reason:
-            db.execute("UPDATE alerts SET active=1,reason=?,since=?,last_notified=? WHERE job=?",
-                       (reason, time.time(), time.time(), ident))
+            db.execute("UPDATE alerts SET active=1,reason=?,since=? WHERE job=?",
+                       (reason, time.time(), ident))
             event(db, ident, "alert", reason)
+            enqueue_notification(db, ident, reason)
             return reason
     elif row[0]:
         db.execute("UPDATE alerts SET active=0,reason=NULL,since=NULL WHERE job=?", (ident,))
         event(db, ident, "recovered", "Successful output-validated completion")
+        enqueue_notification(db, ident, "Recovered: successful output-validated completion")
     return None
 
 def record(ident, kind):
@@ -126,8 +207,7 @@ def record(ident, kind):
             else:
                 event(db, ident, kind)
                 alert = change_alert(db, ident, "Job signaled failure") if kind == "failure" else None
-    if alert:
-        notify(ident, alert)
+    deliver_pending()
     return (good, detail) if kind == "success" else (True, kind)
 
 def check_missed():
@@ -142,8 +222,7 @@ def check_missed():
                     alert = change_alert(db, ident, "Expected completion missed")
                     if alert:
                         alerts.append((ident, alert))
-    for ident, alert in alerts:
-        notify(ident, alert)
+    deliver_pending()
 
 def monitor():
     while True:
@@ -154,12 +233,16 @@ def monitor():
         time.sleep(POLL_SECONDS)
 
 class Handler(BaseHTTPRequestHandler):
-    def send(self, code, payload, content_type="application/json"):
+    def send(self, code, payload, content_type="application/json", attachment=False):
         body = payload.encode() if isinstance(payload, str) else json.dumps(payload).encode()
         self.send_response(code)
         self.send_header("Content-Type", content_type + "; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        if attachment:
+            self.send_header('Content-Disposition', 'attachment; filename="watchdog-proof.json"')
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
         self.end_headers()
         self.wfile.write(body)
 
@@ -174,13 +257,29 @@ class Handler(BaseHTTPRequestHandler):
         good, detail = record(ident, kind)
         return self.send(200 if good else 422, {"ok": good, "message": detail})
 
+    def _admin_authorized(self):
+        supplied = self.headers.get("Authorization", "")
+        if supplied.startswith("Bearer "):
+            return hmac.compare_digest(supplied[7:], ADMIN_TOKEN)
+        if supplied.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(supplied[6:], validate=True).decode("utf-8")
+                username, password = decoded.split(":", 1)
+                return hmac.compare_digest(username, "admin") and hmac.compare_digest(password, ADMIN_TOKEN)
+            except (ValueError, UnicodeDecodeError, binascii.Error):
+                return False
+        return False
+
     def do_GET(self):
-        token = self.headers.get("Authorization", "").removeprefix("Bearer ")
-        if not hmac.compare_digest(token, ADMIN_TOKEN):
+        if not self._admin_authorized():
             self.send_response(401)
-            self.send_header("WWW-Authenticate", 'Bearer realm="Watchdog admin"')
+            self.send_header("WWW-Authenticate", 'Basic realm="Watchdog admin"')
             self.end_headers()
             return
+        if self.path == "/api/notifications":
+            return self.send(200, {"notifications": notification_status()})
+        if self.path == "/api/report":
+            return self.send(200, proof_report(), attachment=True)
         if self.path not in ("/", "/api/status"):
             return self.send(404, {"error": "Not found"})
         with lock, connection() as db:
@@ -203,7 +302,8 @@ class Handler(BaseHTTPRequestHandler):
                 'h1{color:#86daca}</style></head><body><h1>Mad Mallard Automation Watchdog</h1>'
                 '<p>Up to five scheduled jobs · completion and output validation</p>'
                 '<table><tr><th>Job</th><th>State</th><th>Reason</th><th>Last event (UTC)</th></tr>'
-                + rows + '</table><p>Admin API: /api/status (Bearer token)</p></body></html>')
+                + rows + '</table><p><a href="/api/report" style="color:#86daca">Download proof report (JSON)</a></p>'
+                '<p>Admin API: /api/status (Bearer token)</p></body></html>')
         return self.send(200, page, "text/html")
 
 if __name__ == "__main__":
