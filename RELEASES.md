@@ -10,6 +10,7 @@ A release requires: completed Sprint milestone or urgent break/fix; green CI; Do
 - Isolated upstream Healthchecks lab and Vercel browser simulation.
 - Browser admin authentication, dynamic README badges and central standards checks.
 - Persistent bounded webhook retries, recovery messages and admin delivery audit.
+- Authenticated redacted proof-report download with observed status and event counts.
 
 Queue migration: startup adds the notifications table without replacing existing
 events/alerts. Stop the app and take a consistent backup of the project-owned

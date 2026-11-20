@@ -116,6 +116,21 @@ def notification_status():
              "created": stamp(r[4]), "state": "sent" if r[5] else "exhausted" if r[3] >= MAX_DELIVERY_ATTEMPTS else "pending"}
             for r in rows]
 
+def proof_report():
+    """Evidence summary excludes paths, output contents, tokens and destinations."""
+    result = []
+    with lock, connection() as db:
+        for ident in jobs:
+            alert = db.execute('SELECT active,reason FROM alerts WHERE job=?', (ident,)).fetchone()
+            counts = dict(db.execute('SELECT kind,COUNT(*) FROM events WHERE job=? GROUP BY kind', (ident,)))
+            last = db.execute("SELECT MAX(timestamp) FROM events WHERE job=? AND kind='success'", (ident,)).fetchone()[0]
+            result.append({'id': ident, 'state': 'ALERT' if alert[0] else 'OK' if last else 'UNVERIFIED',
+                           'reason': alert[1] if alert[0] else None,
+                           'last_validated_success': stamp(last) if last else None, 'event_counts': counts})
+    return {'schema_version': 1, 'generated_at': stamp(time.time()), 'jobs': result,
+            'notifications': notification_status(),
+            'limitations': 'Observed application evidence only; not a delivery, uptime or compliance guarantee. Job identifiers are operator supplied.'}
+
 def validate_output(job):
     check = job.get("output_check")
     if not check:
@@ -214,11 +229,13 @@ def monitor():
         time.sleep(POLL_SECONDS)
 
 class Handler(BaseHTTPRequestHandler):
-    def send(self, code, payload, content_type="application/json"):
+    def send(self, code, payload, content_type="application/json", attachment=False):
         body = payload.encode() if isinstance(payload, str) else json.dumps(payload).encode()
         self.send_response(code)
         self.send_header("Content-Type", content_type + "; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        if attachment:
+            self.send_header('Content-Disposition', 'attachment; filename="watchdog-proof.json"')
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
@@ -257,6 +274,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/notifications":
             return self.send(200, {"notifications": notification_status()})
+        if self.path == "/api/report":
+            return self.send(200, proof_report(), attachment=True)
         if self.path not in ("/", "/api/status"):
             return self.send(404, {"error": "Not found"})
         with lock, connection() as db:
@@ -279,7 +298,8 @@ class Handler(BaseHTTPRequestHandler):
                 'h1{color:#86daca}</style></head><body><h1>Mad Mallard Automation Watchdog</h1>'
                 '<p>Up to five scheduled jobs · completion and output validation</p>'
                 '<table><tr><th>Job</th><th>State</th><th>Reason</th><th>Last event (UTC)</th></tr>'
-                + rows + '</table><p>Admin API: /api/status (Bearer token)</p></body></html>')
+                + rows + '</table><p><a href="/api/report" style="color:#86daca">Download proof report (JSON)</a></p>'
+                '<p>Admin API: /api/status (Bearer token)</p></body></html>')
         return self.send(200, page, "text/html")
 
 if __name__ == "__main__":

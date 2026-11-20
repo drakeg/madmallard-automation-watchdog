@@ -14,6 +14,8 @@ jobs:
           python-version: '3.15'
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q watchdog.py
+      - name: Synthetic HTTP delivery smoke
+        run: python scripts/smoke_delivery.py
       - name: Validate README badges
         run: python scripts/validate_repository.py
       - uses: actions/setup-node@v4

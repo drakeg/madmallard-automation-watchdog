@@ -14,7 +14,8 @@
 - [x] #11: transactional persistent notification queue, bounded retries and admin audit
 - [ ] #11: complete live Docker verification of new queue and audit
 - [ ] Operator-friendly protected configuration UI
-- [ ] SMTP/provider adapters, notification retention and redacted report export
+- [x] #12: authenticated redacted JSON proof report and dashboard download link
+- [ ] SMTP/provider adapters and notification retention
 - [ ] Verify external receiver delivery before customer deployment
 
 Definition of done: tests and CI green; real local smoke evidence; docs current;

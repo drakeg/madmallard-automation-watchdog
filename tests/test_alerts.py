@@ -92,6 +92,28 @@ class AlertTests(unittest.TestCase):
         self.assertNotIn('secret', payload)
         self.assertEqual(json.loads(payload)['notifications'][0]['state'], 'pending')
 
+    def test_proof_export_is_private_and_contains_recovery_evidence(self):
+        server = w.ThreadingHTTPServer(('127.0.0.1', 0), w.Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        url = f'http://127.0.0.1:{server.server_port}/api/report'
+        with self.assertRaises(HTTPError) as denied:
+            urlopen(url, timeout=3)
+        self.assertEqual(denied.exception.code, 401)
+        w.record('feed', 'failure')
+        Path(self.tmp.name, 'feed.csv').write_text('id,value\n1,ready\n')
+        w.record('feed', 'success')
+        with urlopen(Request(url, headers={'Authorization': 'Bearer '+w.ADMIN_TOKEN}), timeout=3) as response:
+            self.assertIn('attachment', response.headers['Content-Disposition'])
+            payload = response.read().decode()
+        self.assertNotIn(w.ADMIN_TOKEN, payload)
+        self.assertNotIn('feed.csv', payload)
+        self.assertNotIn(self.tmp.name, payload)
+        report = json.loads(payload)
+        self.assertEqual(report['jobs'][0]['state'], 'OK')
+        self.assertEqual(report['jobs'][0]['event_counts']['recovered'], 1)
+
     def status(self):
         with w.connection() as db:
             return db.execute('SELECT active,reason FROM alerts WHERE job=?', ('feed',)).fetchone()

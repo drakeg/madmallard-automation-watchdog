@@ -59,3 +59,5 @@ See [SPRINTS.md](SPRINTS.md), [BACKLOG.md](BACKLOG.md), [RELEASES.md](RELEASES.m
 ## Pilot and standards
 
 See [PILOT.md](PILOT.md) for the SMB buyer hypothesis, $399 price hypothesis, scope and owner checklist; [STANDARDS.md](STANDARDS.md) for selected central adoption; and [SECURITY.md](SECURITY.md) for threat model and customer deployment limitations. No demand, revenue or external notification provider delivery is claimed as validated.
+
+Admin-only `GET /api/report` downloads a JSON proof report containing observed job status, event counts and notification states, without raw output, tokens, webhook URLs or file paths. Browser users can use the dashboard download link. Run `python3 scripts/smoke_delivery.py` for an isolated real-HTTP retry/recovery check; it uses a temporary database and loopback receiver only.
