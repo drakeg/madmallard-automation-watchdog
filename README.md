@@ -23,7 +23,7 @@ bash scripts/demo.sh
 docker compose ps
 ```
 
-Dashboard/API: `http://<LAN_HOST_IP>:18765/api/status` with `Authorization: Bearer <ADMIN_TOKEN>`. Root dashboard requires the same header; for a browser use a trusted local reverse proxy that enforces admin authentication. This is intentionally **not** a public website. LAN binding is configurable via WATCHDOG_BIND (default 0.0.0.0). Do not forward this port to the internet; use TLS plus access control for any remote production access.
+Dashboard/API: `http://<LAN_HOST_IP>:18765/api/status` with `Authorization: Bearer <ADMIN_TOKEN>`. For browser login use username `admin` and the local `ADMIN_TOKEN` as password. Basic authentication is unencrypted over HTTP; this is for a trusted lab network only. This is intentionally **not** a public website. LAN binding is configurable via WATCHDOG_BIND (default 0.0.0.0). Do not forward this port to the internet; use TLS plus access control for any remote production access.
 
 Compose uses the existing Docker bridge network, avoiding address-pool allocation on crowded test hosts. The monitor runs with its own SQLite volume and read-only access to synthetic outputs. No shared databases, cross-app authentication, or dependencies on other Mad Mallard projects.
 
@@ -34,7 +34,7 @@ Compose uses the existing Docker bridge network, avoiding address-pool allocatio
 - `POST /api/{job-id}/failure` — immediately raises an alert
 - `GET /api/status` — admin-only JSON snapshot
 
-Each POST uses `Authorization: Bearer <job-specific-token>`. GET uses separate `ADMIN_TOKEN`. The server checks schedule interval + grace against last output-validated success. An active alert clears only after a valid success. Alerts persist in SQLite across restarts; reboot resets the first-run timer for never-completed jobs. A webhook can receive JSON alert objects with job ID/reason only. Webhook provider compatibility and TLS must be checked before customer use.
+Each POST uses `Authorization: Bearer <job-specific-token>`. GET uses separate `ADMIN_TOKEN`. The server checks schedule interval + grace against last output-validated success. An active alert clears only after a valid success. Alerts and the notification queue persist in SQLite across restarts; reboot resets the first-run timer for never-completed jobs. An opt-in webhook receives JSON with fixed reason and job ID only. Both alert and recovery are queued transactionally, retried up to five times with exponential delays starting at 30 seconds, and audited at admin-only `GET /api/notifications`. Delivery is at-least-once, may duplicate after a crash, and can be exhausted. Pending messages use the currently configured destination after restart. This is single-instance only. Webhook provider compatibility and TLS must be checked before customer use.
 
 ### Instrument a scheduled job
 
@@ -55,3 +55,7 @@ To show a synthetic failed job, POST `failure`; to show a missed run, omit the s
 At most five jobs on one host per pilot. No automatic job repair, incident response, outbound customer data, guaranteed uptime or production failover. For independent outage detection, deploy the monitor on a separate host from the jobs in production. An HTTP heartbeat without an output check is **not** sufficient proof of business success.
 
 See [SPRINTS.md](SPRINTS.md), [BACKLOG.md](BACKLOG.md), [RELEASES.md](RELEASES.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [AGENTS.md](AGENTS.md). Licensing: MIT; third-party base image and dependency terms require review for releases.
+
+## Pilot and standards
+
+See [PILOT.md](PILOT.md) for the SMB buyer hypothesis, $399 price hypothesis, scope and owner checklist; [STANDARDS.md](STANDARDS.md) for selected central adoption; and [SECURITY.md](SECURITY.md) for threat model and customer deployment limitations. No demand, revenue or external notification provider delivery is claimed as validated.

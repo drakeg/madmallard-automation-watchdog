@@ -1,35 +1,36 @@
 # Sprint plan
 
-## Sprint 0 — Foundation (in progress, 2026-11-19)
-- [x] Independent public repository, license, contribution process
-- [x] Python standard-library HTTP service and durable SQLite events
-- [x] Isolated Docker Compose configuration and configurable LAN port
-- [x] Missed run, explicit failure, output freshness and nonempty CSV checks
-- [x] Synthetic demo, baseline unit tests, README and initial release policy
-- [x] Build and start Docker container; confirm two output-validated synthetic success pings
-- [ ] Verify restart persistence and failure/missed-run notifications on connected host
-- [ ] Add CI pipeline and review first PR
+## Sprint 0 — Foundation (implemented; PR #1 merged)
+- [x] Independent repository, MIT license and contributor documentation
+- [x] Python/SQLite monitor; output validation; isolated LAN-accessible Compose
+- [x] CI tests and initial demo
+- [x] Actual container failure, restart persistence and valid-output recovery
 
-**Definition of done:** clean tests, Docker smoke tests, no real customer data, documented threat model, reviewable PR.
+## Sprint 1 — Pilot readiness (active)
+- [x] #7 / PR #9: independent Healthchecks lab and Vercel simulation; runtime verified
+- [x] #10 / PR #9: verified badges, idempotent generator and CI validation
+- [x] PR #6: browser Basic/Bearer auth and synthetic integration tests (integrated into PR #9 for review)
+- [x] #11: selected central standards adoption, security boundaries and pilot checklist
+- [x] #11: transactional persistent notification queue, bounded retries and admin audit
+- [ ] #11: complete live Docker verification of new queue and audit
+- [ ] Operator-friendly protected configuration UI
+- [ ] SMTP/provider adapters, notification retention and redacted report export
+- [ ] Verify external receiver delivery before customer deployment
 
-## Sprint 1 — Pilot readiness
-- [x] Issue #10: verified README badges, generator, maintenance convention and CI check (PR #9)
-- [x] Issue #7: standalone Healthchecks Compose configuration and Vercel simulation
-- [x] Issue #7: custom Docker runtime, failure, restart persistence and recovery verified
-- [x] Issue #7: upstream Healthchecks lab healthy, LAN HTTP 200 and admin initialized
-- [ ] Secure browser dashboard auth and operator-friendly configuration
-- [ ] Support generic webhook formats / SMTP alert routing with retries
-- [ ] End-to-end missed/failure/recovery simulations and integration tests
-- [ ] Audit/retention policy, metrics and exportable proof report
-- [ ] Customer onboarding and recovery checklist
+Definition of done: tests and CI green; real local smoke evidence; docs current;
+reviewable PR; no claim of production readiness or real customer validation.
+Code checked above is implemented on the review branch, not a claim of PR merge.
 
 ## Sprint 2 — Commercial validation
-- [ ] Single-page $399 offer; scope and qualification worksheet
-- [ ] Five evidence-based prospects (no automated outreach)
-- [ ] Feedback and time-to-delivery tracking
-- [ ] Go/no-go decision based on written pilot acceptance
+- [x] Draft narrowly scoped $399 hypothesis and qualification/owner checklist (PILOT.md)
+- [ ] Single-page pilot offer
+- [ ] Identify five qualified prospects (research only; no automated outreach)
+- [ ] Record actual feedback and hands-on delivery time
+- [ ] Go/no-go based on evidence and written pilot acceptance
 
 ## Later backlog
-- [ ] Multi-host installation
-- [ ] Scheduler-specific adapters (cron, systemd timers, container jobs)
-- [ ] Kubernetes deployment manifests, ECS task definition and ECR publishing workflow
+- [ ] Multi-host installation and scheduler-specific adapters
+- [ ] Kubernetes/EKS manifests and ECS/ECR templates (no cloud provisioning)
+
+Continue ready backlog tasks within each authorized session. Do not stop for
+routine Sprint transitions; required PR reviews and cost/data boundaries remain.

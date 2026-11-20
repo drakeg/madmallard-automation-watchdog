@@ -14,8 +14,17 @@ supported yet. Add a dynamic latest-release badge when a first release is actual
 published; none existed at adoption. Preserve all other README content and useful
 badges, removing unsupported or duplicate claims.
 
-Central source of truth: https://github.com/drakeg/madmallard-repository-standards.
-At adoption it contained only a placeholder README, without usable templates or
-a generator. This local implementation follows the user's requirements; reconcile
-it with the published central standards when available. Do not invent central rules
-or make this repo's CI depend on a moving remote branch.
+## Execution, central adoption and commercial priorities
+
+Follow STANDARDS.md, which records the reviewed central revision and selected
+adoption. Build, deploy, test, fix and continue to the next ready backlog task
+within the authorized session. Sprint completion, merge or a working deployment
+is not a reason to request routine permission. Preserve required reviews and
+branch protection; do not silently merge unreviewed work. Ask only for essential
+missing information, costs, destructive actions or consequential decisions.
+
+Keep SPRINTS.md, BACKLOG.md, RELEASES.md, SECURITY.md and PILOT.md synchronized.
+Prioritize an SMB pilot that demonstrates output validity and reliable alerts;
+record pricing as a hypothesis and never invent customer evidence. Run
+`python3 scripts/validate_repository.py`, application tests, Node tests and both
+Compose configuration checks. Include PR links, actual results and limitations.
