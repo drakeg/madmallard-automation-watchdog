@@ -16,7 +16,7 @@
 - [x] Issue #10: verified README badges, generator, maintenance convention and CI check (PR #9)
 - [x] Issue #7: standalone Healthchecks Compose configuration and Vercel simulation
 - [x] Issue #7: custom Docker runtime, failure, restart persistence and recovery verified
-- [ ] Issue #7: finish upstream Healthchecks comparison lab runtime verification
+- [x] Issue #7: upstream Healthchecks lab healthy, LAN HTTP 200 and admin initialized
 - [ ] Secure browser dashboard auth and operator-friendly configuration
 - [ ] Support generic webhook formats / SMTP alert routing with retries
 - [ ] End-to-end missed/failure/recovery simulations and integration tests

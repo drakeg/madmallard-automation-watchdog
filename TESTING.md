@@ -14,14 +14,14 @@ in-progress Sprint 1 build; the merged foundation only accepts bearer headers.
 This is the actual BSD 3-Clause [Healthchecks project](https://github.com/healthchecks/healthchecks),
 not the custom Watchdog. Official image tag v5.0.3 corresponds to upstream commit
 `51a503531d845fc11d5ef270d576c59c300e3620`. SQLite and its own named volume keep it
-independent. Docker image availability/runtime remain to be verified on the host.
+independent. The official image has been pulled and the lab started healthy on the Mac.
 
 ```bash
 python3 scripts/init-healthchecks.py --url http://YOUR_LAN_IP:18080
 docker compose -f compose.healthchecks.yml config -q
 docker compose -f compose.healthchecks.yml up -d
 # Initial account creation only (password is read inside the container):
-docker compose -f compose.healthchecks.yml exec healthchecks ./manage.py createsuperuser --noinput
+bash scripts/healthchecks-admin.sh
 docker compose -f compose.healthchecks.yml ps
 ```
 
@@ -86,8 +86,7 @@ The custom Watchdog container started healthy on the Mac with LAN port 18765.
 Authenticated dashboard and status API both returned HTTP 200. Two synthetic
 output checks passed; an explicit failure raised ALERT, the alert survived a
 container restart, and fresh output completions restored both jobs to OK.
-The upstream Healthchecks image pull was started separately; its runtime
-verification is still pending. No other containers were restarted.
+The upstream Healthchecks lab also started healthy and its LAN homepage returned HTTP 200. Initial admin creation completed. External notification delivery remains unconfigured. No other containers were restarted.
 
 Issue #10: README badge generation/check, repeat-run idempotence and stale-version
 detection passed. Five Python tests, the Node scenario test and GitHub CI passed.
