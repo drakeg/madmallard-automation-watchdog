@@ -18,7 +18,7 @@ jobs:
         run: python scripts/smoke_delivery.py
       - name: Validate README badges
         run: python scripts/validate_repository.py
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Test browser simulation
