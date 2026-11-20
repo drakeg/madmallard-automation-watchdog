@@ -32,7 +32,10 @@ Compose uses the existing Docker bridge network, avoiding address-pool allocatio
 - `POST /api/{job-id}/start` — job started, informational only
 - `POST /api/{job-id}/success` — validates configured file and records completion only if valid (422 otherwise)
 - `POST /api/{job-id}/failure` — immediately raises an alert
-- `GET /api/status` — admin-only JSON snapshot
+- `GET /api/status` — admin-only JSON snapshot and delivery counters
+- `GET /api/admin/jobs` — administrator-only, redacted schedules
+- `PUT /api/admin/jobs/{job-id}` — admin-only update to `interval_seconds` and `grace_seconds` (JSON, intent header required)
+- `GET /api/jobs/{job-id}/delivery` — admin-only, latest 30 delivery attempts and alert age
 - `GET /api/report.csv` — admin-only CSV export of the latest 5,000 job events (UTC timestamps, no business output)
 
 Each POST uses `Authorization: Bearer <job-specific-token>`. GET uses separate `ADMIN_TOKEN`. The server checks schedule interval + grace against last output-validated success. An active alert clears only after a valid success; recovery also sends a webhook message when configured. Webhook failures are stored in the local SQLite notification queue and retried with exponential backoff (5–300 seconds) across service restarts; delivery is at-least-once, so webhook receivers should tolerate duplicates. Webhook provider compatibility must be tested. HTTPS is required for external webhook URLs (HTTP loopback is permitted for synthetic tests). Alerts persist in SQLite across restarts; reboot resets the first-run timer for never-completed jobs. A webhook can receive JSON alert objects with job ID/reason only. Both alerts and recoveries are queued when a webhook is configured. Webhook provider compatibility and TLS must be checked before customer use.
@@ -80,3 +83,7 @@ Export `/api/report.csv` with the admin token using a Bearer Authorization heade
 ### Retention and delivery visibility
 
 `RETENTION_DAYS` defaults to **90** (valid range 1–3650). A daily sweep removes old job events and **delivered** notification records, but **never undelivered notifications**; this prevents a prolonged webhook outage from silently discarding alerts. Set retention based on the customer's contract and data policy. Use backups for historical evidence before reducing retention; scheduled pruning is irreversible. The authenticated dashboard and `/api/status` show pending, retrying, and delivered notification counts. Empty counts when no webhook is configured are expected.
+
+### Operator configuration
+
+The authenticated dashboard includes a schedule table. Update an existing job's completion interval (minimum 5 seconds) or grace window (minimum 0 seconds) and select **Save**. Changes are written to the independent watchdog SQLite database and survive container restarts. The original `jobs.json` and credentials remain unchanged; newly added/removed jobs still require updating the protected `jobs.json` and restarting the container. Use the per-job delivery API to inspect notification attempts and current alert age; it is not exposed anonymously. Browser credentials must be used behind a trusted TLS endpoint for customer production.

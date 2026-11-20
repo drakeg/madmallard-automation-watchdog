@@ -29,6 +29,7 @@ class AlertTests(unittest.TestCase):
             db.execute('CREATE TABLE alerts (job TEXT PRIMARY KEY, active INTEGER, reason TEXT,since REAL,last_notified REAL)')
             db.execute('INSERT INTO alerts(job,active) VALUES (?,0)', ('feed',))
             db.execute('CREATE TABLE notification_queue (id INTEGER PRIMARY KEY,job TEXT,reason TEXT,created REAL,attempt INTEGER DEFAULT 0,next_attempt REAL,delivered REAL)')
+            db.execute('CREATE TABLE job_settings (job TEXT PRIMARY KEY,interval_seconds INTEGER,grace_seconds INTEGER,updated REAL)')
 
     def status(self):
         with w.connection() as db:
@@ -48,6 +49,33 @@ class AlertTests(unittest.TestCase):
         self.assertIn('success', events)
         # Opening a new DB connection simulates the persistence boundary.
         self.assertEqual(self.status(), (0, None))
+
+    def test_schedule_update_persisted_and_bounded(self):
+        updated = w.update_job_schedule('feed', 3600, 120)
+        self.assertEqual(updated["interval_seconds"], 3600)
+        self.assertEqual(w.public_job_config()[0]["grace_seconds"], 120)
+        with w.connection() as db:
+            self.assertEqual(
+                db.execute("SELECT interval_seconds,grace_seconds FROM job_settings WHERE job='feed'").fetchone(),
+                (3600, 120)
+            )
+        with self.assertRaisesRegex(ValueError, 'out of range'):
+            w.update_job_schedule('feed', 2, 0)
+        self.assertEqual(w.public_job_config()[0]["interval_seconds"], 3600)
+        with self.assertRaisesRegex(ValueError, 'integers'):
+            w.update_job_schedule('feed', True, 0)
+
+    def test_delivery_audit_per_job_and_age(self):
+        with patch.object(w, 'WEBHOOK_URL', 'https://alerts.example.invalid/hook'):
+            w.record('feed', 'failure')
+            audit = w.job_delivery_history('feed')
+        self.assertEqual(audit['job'], 'feed')
+        self.assertTrue(audit['alert']['active'])
+        self.assertEqual(len(audit['delivery']), 1)
+        self.assertIsNone(audit['delivery'][0]['delivered'])
+        self.assertGreaterEqual(audit['alert']['age_seconds'], 0)
+        with self.assertRaises(KeyError):
+            w.job_delivery_history('other')
 
     def test_bad_output_does_not_recover(self):
         w.record('feed','failure')

@@ -68,8 +68,17 @@ def init():
             (id INTEGER PRIMARY KEY, job TEXT NOT NULL, reason TEXT NOT NULL,
              created REAL NOT NULL, attempt INTEGER NOT NULL DEFAULT 0,
              next_attempt REAL NOT NULL, delivered REAL)""")
+        db.execute("""CREATE TABLE IF NOT EXISTS job_settings (
+            job TEXT PRIMARY KEY, interval_seconds INTEGER NOT NULL,
+            grace_seconds INTEGER NOT NULL, updated REAL NOT NULL)""")
         for job in jobs:
             db.execute("INSERT OR IGNORE INTO alerts(job,active) VALUES (?,0)", (job,))
+        for ident, interval, grace in db.execute(
+            "SELECT job,interval_seconds,grace_seconds FROM job_settings"
+        ):
+            if ident in jobs:
+                jobs[ident]["interval_seconds"] = interval
+                jobs[ident]["grace_seconds"] = grace
 
 def event(db, job, kind, details=""):
     db.execute("INSERT INTO events(job,kind,timestamp,details) VALUES (?,?,?,?)",
@@ -176,6 +185,68 @@ def prune_history(now=None):
     return events_deleted, delivered_deleted
 
 
+def job_delivery_history(ident, limit=30):
+    if ident not in jobs:
+        raise KeyError(ident)
+    with lock, connection() as db:
+        records = db.execute(
+            """SELECT reason,created,attempt,next_attempt,delivered
+               FROM notification_queue WHERE job=? ORDER BY id DESC LIMIT ?""",
+            (ident, limit)
+        ).fetchall()
+        state = db.execute(
+            "SELECT active,reason,since FROM alerts WHERE job=?", (ident,)
+        ).fetchone()
+    return {
+        "job": ident,
+        "alert": {
+            "active": bool(state[0]),
+            "reason": state[1],
+            "since": stamp(state[2]) if state[2] is not None else None,
+            "age_seconds": max(0, int(time.time() - state[2])) if state[0] and state[2] else 0
+        },
+        "delivery": [
+            {"reason": reason, "created": stamp(created), "attempts": attempt,
+             "next_attempt": stamp(next_time) if delivered is None else None,
+             "delivered": stamp(delivered) if delivered is not None else None}
+            for reason, created, attempt, next_time, delivered in records
+        ]
+    }
+
+
+def update_job_schedule(ident, interval, grace):
+    if ident not in jobs:
+        raise KeyError(ident)
+    # Reject booleans, floats and string coercion to avoid confusing settings.
+    if type(interval) is not int or type(grace) is not int:
+        raise ValueError("Schedule values must be integers")
+    if not (5 <= interval <= 31536000 and 0 <= grace <= 2592000):
+        raise ValueError("Interval or grace out of range")
+    with lock, connection() as db:
+        db.execute(
+            """INSERT INTO job_settings(job,interval_seconds,grace_seconds,updated)
+               VALUES (?,?,?,?)
+               ON CONFLICT(job) DO UPDATE SET
+                 interval_seconds=excluded.interval_seconds,
+                 grace_seconds=excluded.grace_seconds,
+                 updated=excluded.updated""",
+            (ident, interval, grace, time.time())
+        )
+        jobs[ident]["interval_seconds"] = interval
+        jobs[ident]["grace_seconds"] = grace
+    return {"id": ident, "interval_seconds": interval, "grace_seconds": grace}
+
+
+def public_job_config():
+    with lock:
+        return [
+            {"id": ident, "name": config.get("name", ident),
+             "interval_seconds": int(config["interval_seconds"]),
+             "grace_seconds": int(config["grace_seconds"])}
+            for ident, config in jobs.items()
+        ]
+
+
 def delivery_summary():
     with lock, connection() as db:
         queued, failed, delivered = db.execute(
@@ -261,6 +332,33 @@ def export_event_csv(limit=5000):
     return out.getvalue()
 
 
+ADMIN_JS = """document.querySelectorAll('#settings button[data-job]').forEach(button => {
+  button.addEventListener('click', async () => {
+    const row = button.closest('tr');
+    const interval = Number(row.querySelector('[data-field=interval_seconds]').value);
+    const grace = Number(row.querySelector('[data-field=grace_seconds]').value);
+    const status = document.getElementById('result');
+    if (!Number.isSafeInteger(interval) || !Number.isSafeInteger(grace)) {
+      status.textContent = 'Enter whole seconds'; return;
+    }
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/admin/jobs/' + encodeURIComponent(button.dataset.job), {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json', 'X-Watchdog-Action': 'update-schedule'},
+        body: JSON.stringify({interval_seconds: interval, grace_seconds: grace})
+      });
+      const result = await response.json();
+      status.textContent = response.ok ? ('Saved schedule for ' + result.id) : (result.error || 'Save failed');
+    } catch {
+      status.textContent = 'Connection failed';
+    } finally {
+      button.disabled = false;
+    }
+  });
+});"""
+
+
 class Handler(BaseHTTPRequestHandler):
     def send(self, code, payload, content_type="application/json"):
         body = payload.encode() if isinstance(payload, str) else json.dumps(payload).encode()
@@ -269,9 +367,38 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
+        self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'")
         self.end_headers()
         self.wfile.write(body)
+
+    def do_PUT(self):
+        parts = self.path.strip("/").split("/")
+        if len(parts) != 4 or parts[:3] != ["api", "admin", "jobs"] or parts[3] not in jobs:
+            return self.send(404, {"error": "Not found"})
+        if not self._admin_authorized() or self.headers.get("X-Watchdog-Action") != "update-schedule":
+            return self.send(403, {"error": "Admin authentication and intent header required"})
+        if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
+            return self.send(415, {"error": "JSON required"})
+        # Browsers must not allow cross-site scripts to send this custom header.
+        # Reject cross-origin requests explicitly as defense in depth.
+        origin = self.headers.get("Origin")
+        if origin:
+            from urllib.parse import urlsplit as split
+            parsed = split(origin)
+            host = self.headers.get("Host", "")
+            if parsed.netloc != host or parsed.scheme not in ("http", "https"):
+                return self.send(403, {"error": "Cross-origin change forbidden"})
+        try:
+            count = int(self.headers.get("Content-Length", "0"))
+            if not 1 <= count <= 2048:
+                return self.send(413, {"error": "Invalid request length"})
+            data = json.loads(self.rfile.read(count))
+            if not isinstance(data, dict) or set(data) != {"interval_seconds", "grace_seconds"}:
+                raise ValueError("Unexpected configuration")
+            updated = update_job_schedule(parts[3], data["interval_seconds"], data["grace_seconds"])
+        except (ValueError, TypeError, UnicodeError, json.JSONDecodeError):
+            return self.send(400, {"error": "Invalid schedule: interval 5–31536000, grace 0–2592000 seconds"})
+        return self.send(200, updated)
 
     def do_POST(self):
         parts = self.path.strip("/").split("/")
@@ -303,8 +430,16 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("WWW-Authenticate", 'Basic realm="Watchdog admin"')
             self.end_headers()
             return
-        if self.path not in ("/", "/api/status", "/api/report.csv"):
+        if self.path == "/assets/admin.js":
+            return self.send(200, ADMIN_JS, "application/javascript")
+        if self.path.startswith("/api/jobs/") and self.path.endswith("/delivery"):
+            parts = self.path.strip("/").split("/")
+            if len(parts) == 4 and parts[2] in jobs:
+                return self.send(200, job_delivery_history(parts[2]))
+        if self.path not in ("/", "/api/status", "/api/report.csv", "/api/admin/jobs"):
             return self.send(404, {"error": "Not found"})
+        if self.path == "/api/admin/jobs":
+            return self.send(200, {"jobs": public_job_config()})
         if self.path == "/api/report.csv":
             return self.send(200, export_event_csv(), "text/csv")
         with lock, connection() as db:
@@ -319,6 +454,13 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/status":
             return self.send(200, {"jobs": snapshot, "delivery": delivery_summary()})
         delivery = delivery_summary()
+        config_rows = "".join(
+            '<tr><td>' + html.escape(c["name"]) + '</td><td><input type="number" min="5" max="31536000" value="' +
+            str(c["interval_seconds"]) + '" data-field="interval_seconds"></td><td><input type="number" min="0" max="2592000" value="' +
+            str(c["grace_seconds"]) + '" data-field="grace_seconds"></td><td><button type="button" data-job="' +
+            html.escape(c["id"], quote=True) + '">Save</button></td></tr>'
+            for c in public_job_config()
+        )
         rows = "".join("<tr><td>" + html.escape(s["name"]) + "</td><td>" + s["state"] + "</td><td>" +
                        html.escape(s["reason"] or "") + "</td><td>" +
                        html.escape(str(s["last_event"] or "Not run")) + "</td></tr>" for s in snapshot)
@@ -331,7 +473,12 @@ class Handler(BaseHTTPRequestHandler):
                 ' pending, ' + str(delivery["retrying"]) + ' retrying, ' +
                 str(delivery["delivered"]) + ' delivered</p>'
                 '<table><tr><th>Job</th><th>State</th><th>Reason</th><th>Last event (UTC)</th></tr>'
-                + rows + '</table><p>Admin API: /api/status (Bearer token)</p></body></html>')
+                + rows + '</table><h2>Job schedules</h2><p>Edit completion interval and grace in seconds; changes persist across restarts.</p>'
+                '<table id="settings"><thead><tr><th>Job</th><th>Interval (s)</th><th>Grace (s)</th><th>Save</th></tr></thead><tbody>'
+                + config_rows + '</tbody></table><p id="result" role="status" aria-live="polite"></p>'
+                '<p><a href="/api/report.csv">Export event evidence (CSV)</a></p>'
+                '<p>View per-job delivery audit at /api/jobs/{id}/delivery.</p>'
+                '<script src="/assets/admin.js" defer></script></body></html>')
         return self.send(200, page, "text/html")
 
 if __name__ == "__main__":
