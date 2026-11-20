@@ -19,7 +19,7 @@ Never erase volumes during upgrades. Restrict host access and ignored environmen
 files. Audits expose job IDs, fixed reasons, attempts and status, never webhook
 addresses or customer output. Use synthetic identifiers for demos.
 
-External webhooks require HTTPS. Delivery is opt-in, bounded and at-least-once:
+External webhooks require HTTPS; redirects are refused rather than forwarding payloads to another recipient. Delivery is opt-in, bounded and at-least-once:
 a crash after receipt but before acknowledgment can duplicate a notification.
 Only single-instance operation is supported. After five failures a notification
 is exhausted and visible in the audit. This is not a delivery guarantee or 24/7

@@ -169,5 +169,23 @@ class AlertTests(unittest.TestCase):
         with patch.object(w, 'WEBHOOK_URL', 'http://example.com/hook'):
             self.assertFalse(w.notify('feed', 'failure'))
 
+    def test_webhook_redirect_does_not_forward_payload(self):
+        received = []
+        class Redirect(BaseHTTPRequestHandler):
+            def do_POST(self):
+                received.append(self.path)
+                self.rfile.read(int(self.headers['Content-Length']))
+                self.send_response(307)
+                self.send_header('Location', '/unexpected-recipient')
+                self.end_headers()
+            def log_message(self, *args): pass
+        server = HTTPServer(('127.0.0.1', 0), Redirect)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        with patch.object(w, 'WEBHOOK_URL', f'http://127.0.0.1:{server.server_port}/configured'):
+            self.assertFalse(w.notify('feed', 'failure'))
+        self.assertEqual(received, ['/configured'])
+
 if __name__ == '__main__':
     unittest.main()

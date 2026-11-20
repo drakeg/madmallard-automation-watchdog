@@ -157,6 +157,10 @@ def validate_output(job):
         return False, "Output is empty"
     return True, "Output validated"
 
+class NoWebhookRedirect(request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
 def notify(job, reason):
     if not WEBHOOK_URL:
         return False
@@ -171,9 +175,9 @@ def notify(job, reason):
     try:
         req = request.Request(WEBHOOK_URL, data=payload,
                               headers={"Content-Type": "application/json"}, method="POST")
-        with request.urlopen(req, timeout=5) as response:
-            response.read()
-            return True
+        # Do not forward payloads to a redirect destination or downgrade HTTPS.
+        with request.build_opener(NoWebhookRedirect).open(req, timeout=5) as response:
+            return 200 <= response.status < 300
     except Exception as exc:
         print("Notification delivery failed:", type(exc).__name__, flush=True)
         return False
