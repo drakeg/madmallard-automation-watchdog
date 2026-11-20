@@ -18,7 +18,8 @@
 - [x] Browser Basic authentication without embedding credentials in URLs
 - [ ] Operator-friendly configuration UI with protected changes
 - [x] Recovery webhook and HTTPS-only external webhook destination checks
-- [ ] Support generic webhook formats / SMTP alert routing with retries
+- [x] Persist webhook notifications and retry transient delivery failures with bounded backoff
+- [ ] Support generic webhook formats / SMTP alert routing
 - [x] Synthetic missed/failure/recovery, output-failure and loopback webhook integration tests
 - [x] Live container restart, authorized dashboard/API, and persisted job-event verification
 - [ ] Audit/retention policy, metrics and exportable proof report

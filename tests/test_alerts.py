@@ -28,6 +28,7 @@ class AlertTests(unittest.TestCase):
             db.execute('CREATE TABLE events (id INTEGER PRIMARY KEY, job TEXT,kind TEXT,timestamp REAL,details TEXT)')
             db.execute('CREATE TABLE alerts (job TEXT PRIMARY KEY, active INTEGER, reason TEXT,since REAL,last_notified REAL)')
             db.execute('INSERT INTO alerts(job,active) VALUES (?,0)', ('feed',))
+            db.execute('CREATE TABLE notification_queue (id INTEGER PRIMARY KEY,job TEXT,reason TEXT,created REAL,attempt INTEGER DEFAULT 0,next_attempt REAL,delivered REAL)')
 
     def status(self):
         with w.connection() as db:
@@ -79,6 +80,44 @@ class AlertTests(unittest.TestCase):
             self.assertTrue(w.notify('feed', 'Expected completion missed'))
         self.assertEqual(len(received), 1)
         self.assertIn('Expected completion missed', received[0])
+
+    def test_retry_queue_survives_reopen_and_delivers(self):
+        with patch.object(w, 'WEBHOOK_URL', 'https://alerts.example.invalid/hook'):
+            w.record('feed', 'failure')
+            with w.connection() as db:
+                item = db.execute('SELECT id,attempt,delivered FROM notification_queue').fetchone()
+            self.assertEqual(item[1:], (0, None))
+            with patch.object(w, 'notify', side_effect=[False, True]) as deliver:
+                w.dispatch_notifications()
+                with w.connection() as db:
+                    attempt, next_time = db.execute(
+                        'SELECT attempt,next_attempt FROM notification_queue WHERE id=?',
+                        (item[0],)
+                    ).fetchone()
+                    self.assertEqual(attempt, 1)
+                    db.execute('UPDATE notification_queue SET next_attempt=0 WHERE id=?', (item[0],))
+                w.dispatch_notifications()
+                self.assertEqual(deliver.call_count, 2)
+            with w.connection() as db:
+                self.assertIsNotNone(db.execute(
+                    'SELECT delivered FROM notification_queue WHERE id=?', (item[0],)
+                ).fetchone()[0])
+
+    def test_missed_does_not_hide_explicit_failure(self):
+        w.record('feed', 'failure')
+        w.check_missed()
+        self.assertEqual(self.status(), (1, 'Job signaled failure'))
+
+    def test_recovery_is_queued(self):
+        Path(self.tmp.name, 'feed.csv').write_text('id,value\n1,ready\n')
+        with patch.object(w, 'WEBHOOK_URL', 'https://alerts.example.invalid/hook'):
+            w.record('feed', 'failure')
+            w.record('feed', 'success')
+            with w.connection() as db:
+                messages = [x[0] for x in db.execute(
+                    'SELECT reason FROM notification_queue ORDER BY id')]
+            self.assertEqual(len(messages), 2)
+            self.assertTrue(messages[1].startswith('RECOVERED:'))
 
     def test_reject_non_tls_external_webhook(self):
         with patch.object(w, 'WEBHOOK_URL', 'http://example.com/hook'):

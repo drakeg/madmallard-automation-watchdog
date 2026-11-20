@@ -60,6 +60,10 @@ def init():
         db.execute("""CREATE TABLE IF NOT EXISTS alerts
             (job TEXT PRIMARY KEY, active INTEGER NOT NULL, reason TEXT,
              since REAL, last_notified REAL)""")
+        db.execute("""CREATE TABLE IF NOT EXISTS notification_queue
+            (id INTEGER PRIMARY KEY, job TEXT NOT NULL, reason TEXT NOT NULL,
+             created REAL NOT NULL, attempt INTEGER NOT NULL DEFAULT 0,
+             next_attempt REAL NOT NULL, delivered REAL)""")
         for job in jobs:
             db.execute("INSERT OR IGNORE INTO alerts(job,active) VALUES (?,0)", (job,))
 
@@ -114,6 +118,43 @@ def notify(job, reason):
         print("Notification delivery failed:", type(exc).__name__, flush=True)
         return False
 
+def queue_notification(db, ident, reason):
+    if WEBHOOK_URL:
+        now = time.time()
+        db.execute(
+            "INSERT INTO notification_queue(job, reason, created, next_attempt) VALUES (?,?,?,?)",
+            (ident, reason, now, now)
+        )
+
+def dispatch_notifications():
+    """Deliver persisted notifications, backing off from transient failures.
+
+    A failed webhook remains queued across restarts. SQLite serializes queue
+    updates so only one monitor thread should dispatch per installation.
+    """
+    if not WEBHOOK_URL:
+        return
+    with lock, connection() as db:
+        pending = db.execute(
+            """SELECT id,job,reason,attempt FROM notification_queue
+               WHERE delivered IS NULL AND next_attempt <= ?
+               ORDER BY id LIMIT 20""", (time.time(),)
+        ).fetchall()
+    for message_id, ident, reason, attempt in pending:
+        success = notify(ident, reason)
+        with lock, connection() as db:
+            if success:
+                db.execute(
+                    "UPDATE notification_queue SET delivered=? WHERE id=? AND delivered IS NULL",
+                    (time.time(), message_id)
+                )
+            else:
+                delay = min(300, 5 * (2 ** min(attempt, 6)))
+                db.execute(
+                    "UPDATE notification_queue SET attempt=attempt+1,next_attempt=? WHERE id=? AND delivered IS NULL",
+                    (time.time() + delay, message_id)
+                )
+
 def change_alert(db, ident, reason):
     row = db.execute("SELECT active,reason FROM alerts WHERE job=?", (ident,)).fetchone()
     if reason:
@@ -121,10 +162,13 @@ def change_alert(db, ident, reason):
             db.execute("UPDATE alerts SET active=1,reason=?,since=?,last_notified=? WHERE job=?",
                        (reason, time.time(), time.time(), ident))
             event(db, ident, "alert", reason)
+            queue_notification(db, ident, reason)
             return reason
     elif row[0]:
         db.execute("UPDATE alerts SET active=0,reason=NULL,since=NULL WHERE job=?", (ident,))
         event(db, ident, "recovered", "Successful output-validated completion")
+        queue_notification(db, ident, "RECOVERED: Successful output-validated completion")
+        return "RECOVERED: Successful output-validated completion"
     return None
 
 def record(ident, kind):
@@ -137,12 +181,9 @@ def record(ident, kind):
             else:
                 event(db, ident, kind)
                 alert = change_alert(db, ident, "Job signaled failure") if kind == "failure" else None
-    if alert:
-        notify(ident, alert)
     return (good, detail) if kind == "success" else (True, kind)
 
 def check_missed():
-    alerts = []
     with lock:
         with connection() as db:
             for ident, job in jobs.items():
@@ -150,16 +191,20 @@ def check_missed():
                 baseline = row[0] if row[0] is not None else boot_time
                 overdue = time.time() > baseline + int(job["interval_seconds"]) + int(job["grace_seconds"])
                 if overdue:
-                    alert = change_alert(db, ident, "Expected completion missed")
-                    if alert:
-                        alerts.append((ident, alert))
-    for ident, alert in alerts:
-        notify(ident, alert)
+                    current = db.execute(
+                        "SELECT active,reason FROM alerts WHERE job=?", (ident,)
+                    ).fetchone()
+                    # Preserve an actionable explicit/output failure until
+                    # validated completion, rather than replacing it with missed.
+                    if not current[0]:
+                        change_alert(db, ident, "Expected completion missed")
+    # Notifications are enqueued transactionally by change_alert.
 
 def monitor():
     while True:
         try:
             check_missed()
+            dispatch_notifications()
         except Exception as exc:
             print("Monitor error:", repr(exc), flush=True)
         time.sleep(POLL_SECONDS)
