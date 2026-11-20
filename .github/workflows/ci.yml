@@ -24,6 +24,8 @@ jobs:
       - name: Test browser simulation
         run: node --test tests/demo.test.cjs
       - run: cp .env.example .env && cp jobs.example.json jobs.json && docker compose config -q
+      - name: Validate rapid local override
+        run: docker compose -f compose.yml -f compose.dev.yml config -q
       - name: Validate isolated Healthchecks lab
         run: |
           python scripts/init-healthchecks.py --url http://127.0.0.1:18080

@@ -91,3 +91,32 @@ The upstream Healthchecks lab also started healthy and its LAN homepage returned
 Issue #10: README badge generation/check, repeat-run idempotence and stale-version
 detection passed. Five Python tests, the Node scenario test and GitHub CI passed.
 The central standards repository had only a placeholder README when inspected.
+
+## Rapid source iteration and pilot delivery
+
+After the primary Compose deployment has initialized the owned data volume:
+
+```bash
+docker compose -f compose.yml -f compose.dev.yml config -q
+docker compose -f compose.yml -f compose.dev.yml up -d --no-build
+# After changing watchdog.py, restart only this service:
+docker compose -f compose.yml -f compose.dev.yml restart watchdog
+```
+
+This optional local override mounts source read-only and uses Python 3.15 with
+numeric UID/GID 10001. It is not a customer production deployment. It requires
+the existing writable volume; initialize fresh environments with compose.yml.
+The container image build and runtime depend on a responsive Docker Desktop.
+Do not restart the global daemon as part of project-specific troubleshooting.
+
+Issue #11: 16 Python tests, Node scenarios, standards checks and a real loopback
+HTTP 503/retry/204/recovery smoke passed on the connected Mac. The latter uses a
+temporary database, reloads module state across an open database, and advances
+retry due time rather than waiting. Run `python3 scripts/smoke_delivery.py`.
+
+Issue #12: GET /api/report requires admin authentication and downloads a proof
+summary without raw output, paths, credentials or webhook addresses. Unit HTTP
+tests verify unauthorized access and redaction. A dashboard download link is
+included. The latest Docker rollout is pending because the host image builder
+stalled and subsequent Docker API calls timed out; it is not claimed deployed.
+A consistent SQLite backup was taken before attempting the additive migration.

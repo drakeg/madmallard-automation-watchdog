@@ -1,0 +1,10 @@
+# Rapid local iteration after compose.yml has initialized the data volume.
+services:
+  watchdog:
+    image: python:3.15-slim
+    build: !reset null
+    user: "10001:10001"
+    working_dir: /app
+    command: ["python", "-u", "/app/watchdog.py"]
+    volumes:
+      - ./watchdog.py:/app/watchdog.py:ro
