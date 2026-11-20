@@ -33,6 +33,7 @@ Compose uses the existing Docker bridge network, avoiding address-pool allocatio
 - `POST /api/{job-id}/success` — validates configured file and records completion only if valid (422 otherwise)
 - `POST /api/{job-id}/failure` — immediately raises an alert
 - `GET /api/status` — admin-only JSON snapshot
+- `GET /api/report.csv` — admin-only CSV export of the latest 5,000 job events (UTC timestamps, no business output)
 
 Each POST uses `Authorization: Bearer <job-specific-token>`. GET uses separate `ADMIN_TOKEN`. The server checks schedule interval + grace against last output-validated success. An active alert clears only after a valid success; recovery also sends a webhook message when configured. Webhook failures are stored in the local SQLite notification queue and retried with exponential backoff (5–300 seconds) across service restarts; delivery is at-least-once, so webhook receivers should tolerate duplicates. Webhook provider compatibility must be tested. HTTPS is required for external webhook URLs (HTTP loopback is permitted for synthetic tests). Alerts persist in SQLite across restarts; reboot resets the first-run timer for never-completed jobs. A webhook can receive JSON alert objects with job ID/reason only. Both alerts and recoveries are queued when a webhook is configured. Webhook provider compatibility and TLS must be checked before customer use.
 
@@ -69,3 +70,7 @@ The initial dashboard is deliberately simple: no public session cookies, no sign
 ### Delivery and availability limitations
 
 The outbox retains delivered records for auditing until a retention policy is implemented. A disconnected or misconfigured webhook will continue retrying, so investigate logs if notifications are not arriving. Monitoring is still co-located with the jobs in this demo; for customer production monitoring, move this service to a separate host and configure TLS. No outbound network traffic occurs when WEBHOOK_URL is unset.
+
+### Pilot evidence report
+
+Export `/api/report.csv` with the admin token using a Bearer Authorization header or browser Basic authentication. The report lists job IDs, event types, UTC times and diagnostic summaries; it never includes actual customer output files or heartbeat tokens. The export is intended for a short pilot handoff, not a guarantee of business outcome correctness.

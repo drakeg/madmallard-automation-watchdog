@@ -108,6 +108,14 @@ class AlertTests(unittest.TestCase):
         w.check_missed()
         self.assertEqual(self.status(), (1, 'Job signaled failure'))
 
+    def test_redacted_csv_evidence(self):
+        w.record('feed', 'failure')
+        report = w.export_event_csv()
+        self.assertIn('job,event,timestamp_utc,details', report)
+        self.assertIn('feed,failure,', report)
+        self.assertNotIn('Authorization', report)
+        self.assertNotIn('secret', report)
+
     def test_recovery_is_queued(self):
         Path(self.tmp.name, 'feed.csv').write_text('id,value\n1,ready\n')
         with patch.object(w, 'WEBHOOK_URL', 'https://alerts.example.invalid/hook'):

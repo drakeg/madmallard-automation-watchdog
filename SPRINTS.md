@@ -23,7 +23,8 @@
 - [ ] Support generic webhook formats / SMTP alert routing
 - [x] Synthetic missed/failure/recovery, output-failure and loopback webhook integration tests
 - [x] Live container restart, authorized dashboard/API, and persisted job-event verification
-- [ ] Audit/retention policy, metrics and exportable proof report
+- [x] Admin-only, redacted CSV event-evidence export
+- [ ] Audit/retention policy and metrics
 - [ ] Customer onboarding and recovery checklist
 
 ## Sprint 2 — Commercial validation

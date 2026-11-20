@@ -4,6 +4,7 @@ import binascii
 import csv
 import hmac
 import html
+import io
 import json
 import os
 from pathlib import Path
@@ -209,6 +210,21 @@ def monitor():
             print("Monitor error:", repr(exc), flush=True)
         time.sleep(POLL_SECONDS)
 
+def export_event_csv(limit=5000):
+    """Export redacted job-state evidence, never the underlying business output."""
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(("job", "event", "timestamp_utc", "details"))
+    with lock, connection() as db:
+        rows = db.execute(
+            "SELECT job,kind,timestamp,details FROM events ORDER BY id DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+    for ident, kind, when, details in reversed(rows):
+        writer.writerow((ident, kind, stamp(when), details))
+    return out.getvalue()
+
+
 class Handler(BaseHTTPRequestHandler):
     def send(self, code, payload, content_type="application/json"):
         body = payload.encode() if isinstance(payload, str) else json.dumps(payload).encode()
@@ -251,8 +267,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("WWW-Authenticate", 'Basic realm="Watchdog admin"')
             self.end_headers()
             return
-        if self.path not in ("/", "/api/status"):
+        if self.path not in ("/", "/api/status", "/api/report.csv"):
             return self.send(404, {"error": "Not found"})
+        if self.path == "/api/report.csv":
+            return self.send(200, export_event_csv(), "text/csv")
         with lock, connection() as db:
             snapshot = []
             for ident, job in jobs.items():
