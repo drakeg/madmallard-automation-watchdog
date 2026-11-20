@@ -1,6 +1,7 @@
 # Product backlog
 | Priority | Item | Sprint | Acceptance |
 | --- | --- | --- | --- |
+| P1 | #10 README badge maintenance | 1 | Generated from actual config; CI checks drift; documented convention |
 | P0 | #7 Docker lab runtime verification | 1 | Daemon responds; both labs start; synthetic failure/recovery verified |
 | P1 | #7 Vercel simulation | 1 | Browser-only demo; no real monitoring or secrets; deployment verified |
 | P0 | Verify Compose + alerts + persistence on Mac | 0 | One real container, three synthetic fault scenarios |

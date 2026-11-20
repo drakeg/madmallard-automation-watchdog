@@ -1,5 +1,13 @@
 # Mad Mallard Automation Watchdog
 
+<!-- badges:start -->
+[![Python 3.15](https://img.shields.io/badge/Python-3.15-3776AB?style=flat&logo=python)](https://github.com/drakeg/madmallard-automation-watchdog/blob/HEAD/Dockerfile) [![JavaScript browser](https://img.shields.io/badge/JavaScript-browser-F7DF1E?style=flat&logo=javascript)](https://github.com/drakeg/madmallard-automation-watchdog/tree/HEAD/web) [![SQLite storage](https://img.shields.io/badge/SQLite-storage-003B57?style=flat&logo=sqlite)](https://github.com/drakeg/madmallard-automation-watchdog/blob/HEAD/watchdog.py)
+
+[![Docker supported](https://img.shields.io/badge/Docker-supported-2496ED?style=flat&logo=docker)](https://github.com/drakeg/madmallard-automation-watchdog/blob/HEAD/Dockerfile) [![Docker Compose local lab](https://img.shields.io/badge/Docker%20Compose-local%20lab-2496ED?style=flat&logo=docker)](https://github.com/drakeg/madmallard-automation-watchdog/blob/HEAD/compose.yml) [![Vercel simulation](https://img.shields.io/badge/Vercel-simulation-000000?style=flat&logo=vercel)](https://github.com/drakeg/madmallard-automation-watchdog/blob/HEAD/TESTING.md)
+
+[![CI](https://github.com/drakeg/madmallard-automation-watchdog/actions/workflows/ci.yml/badge.svg)](https://github.com/drakeg/madmallard-automation-watchdog/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/drakeg/madmallard-automation-watchdog?style=flat)](https://github.com/drakeg/madmallard-automation-watchdog/blob/HEAD/LICENSE) [![Open issues](https://img.shields.io/github/issues/drakeg/madmallard-automation-watchdog?style=flat)](https://github.com/drakeg/madmallard-automation-watchdog/issues) [![Pull requests](https://img.shields.io/github/issues-pr/drakeg/madmallard-automation-watchdog?style=flat)](https://github.com/drakeg/madmallard-automation-watchdog/pulls) [![Contributions welcome](https://img.shields.io/badge/Contributions-welcome-2EA44F?style=flat&logo=github)](https://github.com/drakeg/madmallard-automation-watchdog/blob/HEAD/CONTRIBUTING.md)
+<!-- badges:end -->
+
 Standalone, open-source MVP for the **Five-Job Automation Watchdog Setup** service. Detects **missed completions**, explicit job failures, and business-output failures. Designed for isolated customer-owned Docker/Linux installs; **not affiliated with Healthchecks.io**.
 
 See [TESTING.md](TESTING.md) for the optional upstream Healthchecks Docker lab (port 18080), the custom Watchdog (port 18765), and the Vercel browser-only simulation. Vercel does not host the live monitor or its SQLite database.

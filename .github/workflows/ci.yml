@@ -12,4 +12,15 @@ jobs:
           python-version: '3.15'
       - run: python -m unittest discover -s tests -v
       - run: python -m compileall -q watchdog.py
+      - name: Validate README badges
+        run: python scripts/readme_badges.py --check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test browser simulation
+        run: node --test tests/demo.test.cjs
       - run: cp .env.example .env && cp jobs.example.json jobs.json && docker compose config -q
+      - name: Validate isolated Healthchecks lab
+        run: |
+          python scripts/init-healthchecks.py --url http://127.0.0.1:18080
+          docker compose -f compose.healthchecks.yml config -q

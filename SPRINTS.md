@@ -13,6 +13,7 @@
 **Definition of done:** clean tests, Docker smoke tests, no real customer data, documented threat model, reviewable PR.
 
 ## Sprint 1 — Pilot readiness
+- [x] Issue #10: verified README badges, generator, maintenance convention and CI check (PR #9)
 - [x] Issue #7: standalone Healthchecks Compose configuration and Vercel simulation
 - [ ] Issue #7: confirm Docker runtime after host daemon recovers (blocked 2026-11-19)
 - [ ] Secure browser dashboard auth and operator-friendly configuration
