@@ -20,7 +20,7 @@ jobs:
         run: python scripts/validate_repository.py
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '26'
       - name: Test browser simulation
         run: node --test tests/demo.test.cjs
       - run: cp .env.example .env && cp jobs.example.json jobs.json && docker compose config -q
