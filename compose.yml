@@ -15,6 +15,7 @@ services:
       WATCHDOG_OUTPUT_ROOT: /outputs
       WATCHDOG_DATA: /data
       PORT: "8765"
+      RETENTION_DAYS: "${RETENTION_DAYS:-90}"
     volumes:
       - watchdog-data:/data
       - ./jobs.json:/app/jobs.json:ro

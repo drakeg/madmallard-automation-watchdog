@@ -23,6 +23,7 @@ ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 POLL_SECONDS = int(os.getenv("POLL_SECONDS", "5"))
 PORT = int(os.getenv("PORT", "8765"))
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "90"))
 lock = threading.RLock()
 jobs = {}
 boot_time = time.time()
@@ -38,6 +39,8 @@ def connection():
 def init():
     if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 20:
         raise ValueError("ADMIN_TOKEN must be at least 20 characters")
+    if not 1 <= RETENTION_DAYS <= 3650:
+        raise ValueError("RETENTION_DAYS must be between 1 and 3650")
     DATA.mkdir(parents=True, exist_ok=True)
     spec = json.loads(CONFIG.read_text())
     if not 1 <= len(spec["jobs"]) <= 5:
@@ -156,6 +159,35 @@ def dispatch_notifications():
                     (time.time() + delay, message_id)
                 )
 
+def prune_history(now=None):
+    """Prune only old event history and delivered notification records.
+
+    Never delete pending notifications, even if they are older than retention.
+    """
+    cutoff = (time.time() if now is None else now) - RETENTION_DAYS * 86400
+    with lock, connection() as db:
+        events_deleted = db.execute(
+            "DELETE FROM events WHERE timestamp < ?", (cutoff,)
+        ).rowcount
+        delivered_deleted = db.execute(
+            "DELETE FROM notification_queue WHERE delivered IS NOT NULL AND delivered < ?",
+            (cutoff,)
+        ).rowcount
+    return events_deleted, delivered_deleted
+
+
+def delivery_summary():
+    with lock, connection() as db:
+        queued, failed, delivered = db.execute(
+            """SELECT
+                 COALESCE(SUM(delivered IS NULL),0),
+                 COALESCE(SUM(delivered IS NULL AND attempt > 0),0),
+                 COALESCE(SUM(delivered IS NOT NULL),0)
+               FROM notification_queue"""
+        ).fetchone()
+    return {"pending": queued, "retrying": failed, "delivered": delivered}
+
+
 def change_alert(db, ident, reason):
     row = db.execute("SELECT active,reason FROM alerts WHERE job=?", (ident,)).fetchone()
     if reason:
@@ -202,10 +234,14 @@ def check_missed():
     # Notifications are enqueued transactionally by change_alert.
 
 def monitor():
+    next_cleanup = 0
     while True:
         try:
             check_missed()
             dispatch_notifications()
+            if time.time() >= next_cleanup:
+                prune_history()
+                next_cleanup = time.time() + 86400
         except Exception as exc:
             print("Monitor error:", repr(exc), flush=True)
         time.sleep(POLL_SECONDS)
@@ -281,7 +317,8 @@ class Handler(BaseHTTPRequestHandler):
                                  "reason": state[1] if state[0] else None,
                                  "last_event": {"kind": latest[0], "at": stamp(latest[1])} if latest else None})
         if self.path == "/api/status":
-            return self.send(200, {"jobs": snapshot})
+            return self.send(200, {"jobs": snapshot, "delivery": delivery_summary()})
+        delivery = delivery_summary()
         rows = "".join("<tr><td>" + html.escape(s["name"]) + "</td><td>" + s["state"] + "</td><td>" +
                        html.escape(s["reason"] or "") + "</td><td>" +
                        html.escape(str(s["last_event"] or "Not run")) + "</td></tr>" for s in snapshot)
@@ -290,6 +327,9 @@ class Handler(BaseHTTPRequestHandler):
                 'table{border-collapse:collapse;width:100%}td,th{padding:1rem;border-bottom:1px solid #536075;text-align:left}'
                 'h1{color:#86daca}</style></head><body><h1>Mad Mallard Automation Watchdog</h1>'
                 '<p>Up to five scheduled jobs · completion and output validation</p>'
+                '<p>Notification delivery: ' + str(delivery["pending"]) +
+                ' pending, ' + str(delivery["retrying"]) + ' retrying, ' +
+                str(delivery["delivered"]) + ' delivered</p>'
                 '<table><tr><th>Job</th><th>State</th><th>Reason</th><th>Last event (UTC)</th></tr>'
                 + rows + '</table><p>Admin API: /api/status (Bearer token)</p></body></html>')
         return self.send(200, page, "text/html")

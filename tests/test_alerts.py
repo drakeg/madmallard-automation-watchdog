@@ -108,6 +108,29 @@ class AlertTests(unittest.TestCase):
         w.check_missed()
         self.assertEqual(self.status(), (1, 'Job signaled failure'))
 
+    def test_retention_preserves_unresolved_delivery(self):
+        now = time.time()
+        old = now - 120 * 86400
+        with w.connection() as db:
+            db.execute('INSERT INTO events(job,kind,timestamp,details) VALUES (?,?,?,?)',
+                       ('feed', 'success', old, 'old'))
+            db.execute('INSERT INTO events(job,kind,timestamp,details) VALUES (?,?,?,?)',
+                       ('feed', 'success', now, 'recent'))
+            db.execute('INSERT INTO notification_queue(job,reason,created,attempt,next_attempt,delivered) VALUES (?,?,?,?,?,?)',
+                       ('feed','old delivered',old,0,old,old))
+            db.execute('INSERT INTO notification_queue(job,reason,created,attempt,next_attempt,delivered) VALUES (?,?,?,?,?,NULL)',
+                       ('feed','still pending',old,2,old))
+        with patch.object(w, 'RETENTION_DAYS', 90):
+            self.assertEqual(w.prune_history(now=now), (1,1))
+        with w.connection() as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM events').fetchone()[0], 1)
+        self.assertEqual(w.delivery_summary(), {'pending':1, 'retrying':1, 'delivered':0})
+
+    def test_retention_rejects_bad_config(self):
+        with patch.object(w, 'RETENTION_DAYS', 0):
+            with self.assertRaisesRegex(ValueError, 'RETENTION_DAYS'):
+                w.init()
+
     def test_redacted_csv_evidence(self):
         w.record('feed', 'failure')
         report = w.export_event_csv()

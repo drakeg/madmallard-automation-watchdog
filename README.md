@@ -74,3 +74,7 @@ The outbox retains delivered records for auditing until a retention policy is im
 ### Pilot evidence report
 
 Export `/api/report.csv` with the admin token using a Bearer Authorization header or browser Basic authentication. The report lists job IDs, event types, UTC times and diagnostic summaries; it never includes actual customer output files or heartbeat tokens. The export is intended for a short pilot handoff, not a guarantee of business outcome correctness.
+
+### Retention and delivery visibility
+
+`RETENTION_DAYS` defaults to **90** (valid range 1–3650). A daily sweep removes old job events and **delivered** notification records, but **never undelivered notifications**; this prevents a prolonged webhook outage from silently discarding alerts. Set retention based on the customer's contract and data policy. Use backups for historical evidence before reducing retention; scheduled pruning is irreversible. The authenticated dashboard and `/api/status` show pending, retrying, and delivered notification counts. Empty counts when no webhook is configured are expected.
