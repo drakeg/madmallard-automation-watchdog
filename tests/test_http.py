@@ -70,6 +70,15 @@ class AdminApiTests(unittest.TestCase):
         self.assertIn('id="settings"',page)
         self.assertEqual(self.request('/assets/admin.js')[0],200)
         self.assertEqual(self.request('/api/jobs/feed/delivery')[0],200)
+        self.assertEqual(self.request('/api/jobs/feed/delivery',authorized=False)[0],401)
+        self.assertIn('data-history-job="feed"',page)
+        self.assertIn('id="delivery-panel"',page)
+        self.assertIn('id="delivery-rows"',page)
+        script_status, script = self.request('/assets/admin.js')
+        self.assertEqual(script_status,200)
+        self.assertIn("data-history-job",script)
+        self.assertIn("cell.textContent =",script)
+        self.assertNotIn("innerHTML",script)
 
     def test_invalid_configuration_fails_closed(self):
         headers={'Content-Type':'application/json','X-Watchdog-Action':'update-schedule'}

@@ -9,3 +9,5 @@ A release requires: completed Sprint milestone or urgent break/fix; green CI; Do
 ## Unreleased
 - Add selectable authenticated SMTP-over-TLS notifications (mutually exclusive with webhook), reusing the persistent retry queue; default remains webhook.
 - No schema migration, new external Python dependencies or automatic email account provisioning.
+
+- Add on-demand notification history and delivery retry details to operator dashboard (unreleased).
