@@ -20,14 +20,15 @@
 - [x] Authenticated per-job interval/grace editor with persisted, validated changes
 - [x] Recovery webhook and HTTPS-only external webhook destination checks
 - [x] Persist webhook notifications and retry transient delivery failures with bounded backoff
-- [ ] Support generic webhook formats / SMTP alert routing
+- [x] SMTP over verified TLS as an alternative to generic webhook routing
 - [x] Synthetic missed/failure/recovery, output-failure and loopback webhook integration tests
 - [x] Live container restart, authorized dashboard/API, and persisted job-event verification
 - [x] Admin-only, redacted CSV event-evidence export
 - [x] Configurable retention with pending-alert preservation and delivery status metrics
 - [x] Per-job delivery history and alert aging endpoint
 - [x] Safe SQLite online backup and isolated restore verification
-- [ ] Additional delivery channels (SMTP/provider adapters)
+- [x] SMTP transport, validated configuration, and retry-queue integration
+- [ ] Provider-specific webhooks and scheduled secure off-host backups
 - [x] Customer onboarding and recovery checklist
 
 ## Sprint 2 — Commercial validation (materials in progress, 2026-11-21)
