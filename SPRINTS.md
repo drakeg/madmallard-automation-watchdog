@@ -17,7 +17,7 @@
 - [x] Audit stack and add verified, dynamic README badges (PR #6)
 - [x] Document badge maintenance and add automated CI validation
 - [x] Browser Basic authentication without embedding credentials in URLs
-- [ ] Operator-friendly configuration UI with protected changes
+- [x] Authenticated per-job interval/grace editor with persisted, validated changes
 - [x] Recovery webhook and HTTPS-only external webhook destination checks
 - [x] Persist webhook notifications and retry transient delivery failures with bounded backoff
 - [ ] Support generic webhook formats / SMTP alert routing
@@ -25,7 +25,8 @@
 - [x] Live container restart, authorized dashboard/API, and persisted job-event verification
 - [x] Admin-only, redacted CSV event-evidence export
 - [x] Configurable retention with pending-alert preservation and delivery status metrics
-- [ ] Per-job delivery audit, alert aging and backup/export policy
+- [x] Per-job delivery history and alert aging endpoint
+- [ ] Backup/export policy and additional delivery-channel options
 - [x] Customer onboarding and recovery checklist
 
 ## Sprint 2 — Commercial validation
