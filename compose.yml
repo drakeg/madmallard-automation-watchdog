@@ -11,6 +11,13 @@ services:
       JOB_INVENTORY_TOKEN: "${JOB_INVENTORY_TOKEN:?Set token}"
       JOB_REPORT_TOKEN: "${JOB_REPORT_TOKEN:?Set token}"
       WEBHOOK_URL: "${WEBHOOK_URL:-}"
+      NOTIFICATION_CHANNEL: "${NOTIFICATION_CHANNEL:-webhook}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-465}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      SMTP_TO: "${SMTP_TO:-}"
       WATCHDOG_CONFIG: /app/jobs.json
       WATCHDOG_OUTPUT_ROOT: /outputs
       WATCHDOG_DATA: /data

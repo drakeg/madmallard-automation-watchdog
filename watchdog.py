@@ -7,6 +7,9 @@ import html
 import io
 import json
 import os
+import smtplib
+import ssl
+from email.message import EmailMessage
 from pathlib import Path
 import sqlite3
 import threading
@@ -21,6 +24,13 @@ CONFIG = Path(os.getenv("WATCHDOG_CONFIG", "/app/jobs.json"))
 OUTPUT_ROOT = Path(os.getenv("WATCHDOG_OUTPUT_ROOT", "/outputs")).resolve()
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+NOTIFICATION_CHANNEL = os.getenv("NOTIFICATION_CHANNEL", "webhook").lower()
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "")
+SMTP_TO = os.getenv("SMTP_TO", "")
 POLL_SECONDS = int(os.getenv("POLL_SECONDS", "5"))
 PORT = int(os.getenv("PORT", "8765"))
 RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "90"))
@@ -39,6 +49,7 @@ def connection():
 def init():
     if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 20:
         raise ValueError("ADMIN_TOKEN must be at least 20 characters")
+    validate_delivery_config()
     if not 1 <= RETENTION_DAYS <= 3650:
         raise ValueError("RETENTION_DAYS must be between 1 and 3650")
     DATA.mkdir(parents=True, exist_ok=True)
@@ -110,7 +121,43 @@ def validate_output(job):
         return False, "Output is empty"
     return True, "Output validated"
 
+def delivery_enabled():
+    return bool(WEBHOOK_URL) if NOTIFICATION_CHANNEL == "webhook" else NOTIFICATION_CHANNEL == "smtp"
+
+
+def validate_delivery_config():
+    if NOTIFICATION_CHANNEL not in ("webhook", "smtp"):
+        raise ValueError("NOTIFICATION_CHANNEL must be webhook or smtp")
+    if NOTIFICATION_CHANNEL == "smtp":
+        if not all((SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM, SMTP_TO)):
+            raise ValueError("SMTP requires host, user, password, sender and recipient")
+        if not 1 <= SMTP_PORT <= 65535:
+            raise ValueError("SMTP_PORT out of range")
+        if any("\r" in x or "\n" in x for x in (SMTP_HOST, SMTP_USER, SMTP_FROM, SMTP_TO)):
+            raise ValueError("SMTP fields must not contain newlines")
+
+
+def notify_smtp(job, reason):
+    msg = EmailMessage()
+    msg["From"] = SMTP_FROM
+    msg["To"] = SMTP_TO
+    msg["Subject"] = "Watchdog notification: " + job
+    msg.set_content("Job: " + job + "\nReason: " + reason + "\n")
+    try:
+        # Implicit TLS with default certificate verification; no cleartext fallback.
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT,
+                              context=ssl.create_default_context(), timeout=5) as smtp:
+            smtp.login(SMTP_USER, SMTP_PASSWORD)
+            smtp.send_message(msg)
+        return True
+    except (OSError, smtplib.SMTPException, ssl.SSLError) as exc:
+        print("SMTP notification delivery failed:", type(exc).__name__, flush=True)
+        return False
+
+
 def notify(job, reason):
+    if NOTIFICATION_CHANNEL == "smtp":
+        return notify_smtp(job, reason)
     if not WEBHOOK_URL:
         return False
     # Do not allow unencrypted or non-HTTPS destinations outside loopback tests.
@@ -132,7 +179,7 @@ def notify(job, reason):
         return False
 
 def queue_notification(db, ident, reason):
-    if WEBHOOK_URL:
+    if delivery_enabled():
         now = time.time()
         db.execute(
             "INSERT INTO notification_queue(job, reason, created, next_attempt) VALUES (?,?,?,?)",
@@ -145,7 +192,7 @@ def dispatch_notifications():
     A failed webhook remains queued across restarts. SQLite serializes queue
     updates so only one monitor thread should dispatch per installation.
     """
-    if not WEBHOOK_URL:
+    if not delivery_enabled():
         return
     with lock, connection() as db:
         pending = db.execute(

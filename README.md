@@ -91,3 +91,9 @@ The authenticated dashboard includes a schedule table. Update an existing job's 
 ### SQLite backup and recovery
 
 See the [backup and recovery guide](docs/BACKUP-RECOVERY.md) for verified online backups and isolated restore procedures.
+
+### SMTP delivery (alternative to webhooks)
+
+`NOTIFICATION_CHANNEL` defaults to `webhook`, preserving existing behavior. For an operator-owned email destination, set `NOTIFICATION_CHANNEL=smtp` and provide `SMTP_HOST`, `SMTP_PORT=465`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, and `SMTP_TO` in the ignored local `.env` file. The transport uses implicit TLS with certificate verification and authenticated SMTP; it does **not** fall back to cleartext. Restart only the watchdog Compose service after changing these variables. No hosted mail service or provider account is created by this project.
+
+Choose exactly one notification transport per installation. Both transports use the existing durable notification queue, exponential retries, and the same delivery/alert audit. Changing transport while messages are pending may deliver those messages through the new transport; verify pending messages first. A credential or network failure leaves the notification queued for retry. SMTP email includes only the job identifier and diagnostic reason, not the output file or the configured credentials. For a customer installation, confirm email routing, sender authorization, privacy, and costs before enabling SMTP. The tests use mocks and do not send real mail.
