@@ -29,8 +29,9 @@
 - [ ] Backup/export policy and additional delivery-channel options
 - [x] Customer onboarding and recovery checklist
 
-## Sprint 2 — Commercial validation
-- [ ] Single-page $399 offer; scope and qualification worksheet
+## Sprint 2 — Commercial validation (materials in progress, 2026-11-21)
+- [x] Draft $399 pilot offer, scope and qualification worksheet (PR #18)
+- [x] Synthetic customer demonstration script (PR #18)
 - [ ] Five evidence-based prospects (no automated outreach)
 - [ ] Feedback and time-to-delivery tracking
 - [ ] Go/no-go decision based on written pilot acceptance
