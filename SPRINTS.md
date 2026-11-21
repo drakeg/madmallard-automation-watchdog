@@ -7,7 +7,7 @@
 - [x] Missed run, explicit failure, output freshness and nonempty CSV checks
 - [x] Synthetic demo, baseline unit tests, README and initial release policy
 - [x] Build and start Docker container; confirm two output-validated synthetic success pings
-- [ ] Verify restart persistence and failure/missed-run notifications on connected host
+- [x] Verify restart persistence and failure/missed-run notifications on connected host
 - [x] Add CI pipeline and review first PR
 
 **Definition of done:** clean tests, Docker smoke tests, no real customer data, documented threat model, reviewable PR.
@@ -26,7 +26,8 @@
 - [x] Admin-only, redacted CSV event-evidence export
 - [x] Configurable retention with pending-alert preservation and delivery status metrics
 - [x] Per-job delivery history and alert aging endpoint
-- [ ] Backup/export policy and additional delivery-channel options
+- [x] Safe SQLite online backup and isolated restore verification
+- [ ] Additional delivery channels (SMTP/provider adapters)
 - [x] Customer onboarding and recovery checklist
 
 ## Sprint 2 — Commercial validation (materials in progress, 2026-11-21)

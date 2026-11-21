@@ -87,3 +87,7 @@ Export `/api/report.csv` with the admin token using a Bearer Authorization heade
 ### Operator configuration
 
 The authenticated dashboard includes a schedule table. Update an existing job's completion interval (minimum 5 seconds) or grace window (minimum 0 seconds) and select **Save**. Changes are written to the independent watchdog SQLite database and survive container restarts. The original `jobs.json` and credentials remain unchanged; newly added/removed jobs still require updating the protected `jobs.json` and restarting the container. Use the per-job delivery API to inspect notification attempts and current alert age; it is not exposed anonymously. Browser credentials must be used behind a trusted TLS endpoint for customer production.
+
+### SQLite backup and recovery
+
+See the [backup and recovery guide](docs/BACKUP-RECOVERY.md) for verified online backups and isolated restore procedures.
