@@ -403,7 +403,56 @@ ADMIN_JS = """document.querySelectorAll('#settings button[data-job]').forEach(bu
       button.disabled = false;
     }
   });
-});"""
+});
+const deliveryRoot = document.getElementById('delivery-panel');
+if (deliveryRoot) {
+  document.querySelectorAll('[data-history-job]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const job = button.dataset.historyJob;
+      const panel = document.getElementById('delivery-panel');
+      const heading = document.getElementById('delivery-heading');
+      const message = document.getElementById('delivery-message');
+      const table = document.getElementById('delivery-table');
+      const body = document.getElementById('delivery-rows');
+      panel.hidden = false;
+      heading.textContent = 'Notification history: ' + button.dataset.historyName;
+      message.textContent = 'Loading delivery history…';
+      table.hidden = true;
+      body.replaceChildren();
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/jobs/' + encodeURIComponent(job) + '/delivery');
+        if (!response.ok) throw new Error('Unable to load delivery history (HTTP ' + response.status + ')');
+        const data = await response.json();
+        const current = data.alert || {};
+        message.textContent = current.active
+          ? 'Alert active for ' + current.age_seconds + ' seconds: ' + (current.reason || 'Unknown reason')
+          : 'No active alert';
+        if (!data.delivery.length) {
+          message.textContent += '. No notification delivery records for this job.';
+          return;
+        }
+        for (const item of data.delivery) {
+          const row = document.createElement('tr');
+          const status = item.delivered ? 'Delivered: ' + item.delivered
+                        : (item.attempts ? 'Retrying' : 'Pending');
+          for (const value of [item.created, item.reason, status, String(item.attempts),
+                               item.next_attempt || '—']) {
+            const cell = document.createElement('td');
+            cell.textContent = String(value || '—');
+            row.appendChild(cell);
+          }
+          body.appendChild(row);
+        }
+        table.hidden = false;
+      } catch (error) {
+        message.textContent = error.message || 'Unable to load history';
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+}"""
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -508,23 +557,36 @@ class Handler(BaseHTTPRequestHandler):
             html.escape(c["id"], quote=True) + '">Save</button></td></tr>'
             for c in public_job_config()
         )
-        rows = "".join("<tr><td>" + html.escape(s["name"]) + "</td><td>" + s["state"] + "</td><td>" +
-                       html.escape(s["reason"] or "") + "</td><td>" +
-                       html.escape(str(s["last_event"] or "Not run")) + "</td></tr>" for s in snapshot)
+        rows = "".join(
+            '<tr><td>' + html.escape(item["name"]) + '</td><td>' + item["state"] + '</td><td>' +
+            html.escape(item["reason"] or "") + '</td><td>' +
+            html.escape(str(item["last_event"] or "Not run")) + '</td><td><button type="button" '
+            'data-history-job="' + html.escape(item["id"], quote=True) +
+            '" data-history-name="' + html.escape(item["name"], quote=True) +
+            '" aria-controls="delivery-panel">History</button></td></tr>'
+            for item in snapshot
+        )
         page = ('<!doctype html><html><head><meta name="viewport" content="width=device-width">'
                 '<title>Mad Mallard Watchdog</title><style>body{font:16px system-ui;margin:3rem;background:#101827;color:#eee}'
                 'table{border-collapse:collapse;width:100%}td,th{padding:1rem;border-bottom:1px solid #536075;text-align:left}'
-                'h1{color:#86daca}</style></head><body><h1>Mad Mallard Automation Watchdog</h1>'
+                'table{display:block;overflow-x:auto}button{cursor:pointer}button:focus-visible{outline:3px solid #86daca}'
+                'a{color:#86daca}[hidden]{display:none!important}h1{color:#86daca}</style></head><body><h1>Mad Mallard Automation Watchdog</h1>'
                 '<p>Up to five scheduled jobs · completion and output validation</p>'
                 '<p>Notification delivery: ' + str(delivery["pending"]) +
                 ' pending, ' + str(delivery["retrying"]) + ' retrying, ' +
                 str(delivery["delivered"]) + ' delivered</p>'
-                '<table><tr><th>Job</th><th>State</th><th>Reason</th><th>Last event (UTC)</th></tr>'
-                + rows + '</table><h2>Job schedules</h2><p>Edit completion interval and grace in seconds; changes persist across restarts.</p>'
+                '<table><tr><th>Job</th><th>State</th><th>Reason</th><th>Last event (UTC)</th><th>Notifications</th></tr>'
+                + rows + '</table>'
+                '<section id="delivery-panel" hidden aria-labelledby="delivery-heading"><h2 id="delivery-heading">Notification history</h2>'
+                '<p id="delivery-message" role="status" aria-live="polite"></p>'
+                '<table id="delivery-table" hidden><thead><tr><th>Created (UTC)</th><th>Reason</th>'
+                '<th>Delivery</th><th>Attempts</th><th>Next attempt (UTC)</th></tr></thead>'
+                '<tbody id="delivery-rows"></tbody></table></section>'
+                '<h2>Job schedules</h2><p>Edit completion interval and grace in seconds; changes persist across restarts.</p>'
                 '<table id="settings"><thead><tr><th>Job</th><th>Interval (s)</th><th>Grace (s)</th><th>Save</th></tr></thead><tbody>'
                 + config_rows + '</tbody></table><p id="result" role="status" aria-live="polite"></p>'
                 '<p><a href="/api/report.csv">Export event evidence (CSV)</a></p>'
-                '<p>View per-job delivery audit at /api/jobs/{id}/delivery.</p>'
+                '<p>Use the History button to inspect up to 30 recent notifications per job.</p>'
                 '<script src="/assets/admin.js" defer></script></body></html>')
         return self.send(200, page, "text/html")
 

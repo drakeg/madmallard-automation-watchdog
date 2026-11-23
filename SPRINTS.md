@@ -31,7 +31,8 @@
 - [ ] Provider-specific webhooks and scheduled secure off-host backups
 - [x] Customer onboarding and recovery checklist
 
-## Sprint 2 — Commercial validation (materials in progress, 2026-11-21)
+## Sprint 2 — Commercial validation and operator UX (active, 2026-11-21)
+- [x] View recent notification delivery attempts and alert age in the dashboard
 - [x] Draft $399 pilot offer, scope and qualification worksheet (PR #18)
 - [x] Synthetic customer demonstration script (PR #18)
 - [ ] Five evidence-based prospects (no automated outreach)

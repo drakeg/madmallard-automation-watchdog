@@ -17,3 +17,5 @@ Contributions are triaged as break/fix, active-sprint, or backlog. Do not expand
 - P1: Scheduled encrypted off-host backup after customer hosting/retention requirements are agreed.
 
 - P2: Add provider-specific webhook formats only if pilot integrations demand them; keep the generic webhook default.
+
+- Completed Sprint 2: Authenticated on-demand per-job notification history in dashboard.
